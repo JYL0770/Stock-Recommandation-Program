@@ -31,6 +31,7 @@ class YahooTest {
         assertEquals("NASDAQ", YahooParser.marketOf("NMS"))
         assertEquals("NYSE", YahooParser.marketOf("NYQ"))
         assertEquals("OTC", YahooParser.marketOf("PNK"))
+        assertEquals("OTC", YahooParser.marketOf("OID"))
         assertEquals("^IXIC", BuyZone.indexFor("NASDAQ"))
         assertEquals("^GSPC", BuyZone.indexFor("NYSE"))
         assertEquals("^GSPC", BuyZone.indexFor("OTC"))

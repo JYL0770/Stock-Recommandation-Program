@@ -65,7 +65,7 @@ object YahooParser {
     fun marketOf(exchange: String?): String = when (exchange?.uppercase()) {
         "NMS", "NGM", "NCM", "NAS", "NASDAQ" -> "NASDAQ"
         "NYQ", "NYS", "NYSE", "ASE", "AMEX", "PCX", "BTS", "CBO" -> "NYSE"
-        "PNK", "OQB", "OQX", "OEM", "OTC", "OBB", "PINX" -> "OTC"
+        "PNK", "OQB", "OQX", "OEM", "OTC", "OBB", "PINX", "OID" -> "OTC"
         null, "" -> "US"
         else -> "US"
     }
