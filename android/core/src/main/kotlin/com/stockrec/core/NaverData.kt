@@ -65,8 +65,6 @@ class NaverClient(
 
 object NaverParser {
     private val DATE = DateTimeFormatter.ofPattern("yyyyMMdd")
-    private val ITEM = Regex("""<item\s+data="([^"]*)"""")
-    private val NAME = Regex("""<chartdata[^>]*\sname="([^"]*)"""")
     private val ENCODING = Regex("""encoding="([^"]+)"""")
     private val CHARSET = Regex("""charset=([\w-]+)""", RegexOption.IGNORE_CASE)
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
@@ -80,21 +78,53 @@ object NaverParser {
         return String(bytes, runCatching { Charset.forName(enc) }.getOrDefault(Charsets.UTF_8))
     }
 
-    /** fchart XML → (종목명, 일봉). item data="20240102|시가|고가|저가|종가|거래량" */
+    /**
+     * fchart XML → (종목명, 일봉). item data="20240102|시가|고가|저가|종가|거래량"
+     *
+     * 정규식 대신 indexOf 로 직접 훑습니다. Android 의 정규식은 ICU(네이티브) 기반이라
+     * Regex.findAll 이 매치마다 응답 전체를 네이티브 메모리로 복사해, 수백 종목을 받으면
+     * 메모리가 폭증해 앱이 강제 종료되었습니다.
+     */
     fun parseFchart(xml: String): Pair<String?, List<Bar>> {
-        val name = NAME.find(xml)?.groupValues?.get(1)?.takeIf { it.isNotBlank() }
-        val bars = ITEM.findAll(xml).mapNotNull { m ->
-            val p = m.groupValues[1].split('|')
-            if (p.size < 6) return@mapNotNull null
-            val nums = p.subList(1, 6).map { it.trim().toDoubleOrNull() }
-            if (nums.any { it == null }) return@mapNotNull null
-            val (o, h, l, c, v) = nums.map { it!! }
-            if (c <= 0) return@mapNotNull null
-            val date = runCatching { LocalDate.parse(p[0].trim().take(8), DATE) }.getOrNull() ?: return@mapNotNull null
-            // 거래 정지일 등 시가 0 인 날은 종가로 채움
-            Bar(date, if (o > 0) o else c, if (h > 0) h else c, if (l > 0) l else c, c, v, c * v / 1e6)
-        }.toList().sortedBy { it.date }.distinctBy { it.date }
-        return name to bars
+        val name = attr(xml, "<chartdata", "name")?.takeIf { it.isNotBlank() }
+        val bars = ArrayList<Bar>(600)
+        val key = "<item data=\""
+        var pos = 0
+        while (true) {
+            val s = xml.indexOf(key, pos)
+            if (s < 0) break
+            val start = s + key.length
+            val end = xml.indexOf('"', start)
+            if (end < 0) break
+            pos = end + 1
+            parseItem(xml.substring(start, end))?.let(bars::add)
+        }
+        bars.sortBy { it.date }
+        return name to bars.distinctBy { it.date }
+    }
+
+    private fun parseItem(data: String): Bar? {
+        val p = data.split('|')
+        if (p.size < 6) return null
+        val o = p[1].trim().toDoubleOrNull() ?: return null
+        val h = p[2].trim().toDoubleOrNull() ?: return null
+        val l = p[3].trim().toDoubleOrNull() ?: return null
+        val c = p[4].trim().toDoubleOrNull() ?: return null
+        val v = p[5].trim().toDoubleOrNull() ?: return null
+        if (c <= 0) return null
+        val date = runCatching { LocalDate.parse(p[0].trim().take(8), DATE) }.getOrNull() ?: return null
+        // 거래 정지일 등 시가 0 인 날은 종가로 채움
+        return Bar(date, if (o > 0) o else c, if (h > 0) h else c, if (l > 0) l else c, c, v, c * v / 1e6)
+    }
+
+    /** <tag ... name="value"> 에서 속성 값 */
+    private fun attr(xml: String, tag: String, name: String): String? {
+        val t = xml.indexOf(tag).takeIf { it >= 0 } ?: return null
+        val close = xml.indexOf('>', t).takeIf { it >= 0 } ?: return null
+        val a = xml.indexOf(" $name=\"", t).takeIf { it in t..close } ?: return null
+        val start = a + name.length + 3
+        val end = xml.indexOf('"', start).takeIf { it in start..close } ?: return null
+        return xml.substring(start, end)
     }
 
     /** m.stock.naver.com marketValue JSON → 보통주 목록 (ETF·ETN·우선주 등 제외) */

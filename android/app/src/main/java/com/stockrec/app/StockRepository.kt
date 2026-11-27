@@ -35,7 +35,7 @@ class StockRepository(context: Context) {
     companion object {
         const val HISTORY_DAYS = 520          // 약 2년 (12개월 모멘텀 + 백테스트용)
         const val CACHE_TTL_MS = 3 * 60 * 60 * 1000L
-        private const val PARALLEL = 6
+        private const val PARALLEL = 4
     }
 
     fun demo(): LoadResult =
