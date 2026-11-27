@@ -69,6 +69,25 @@ def main():
             "stats": {k: float(v) for k, v in bt.stats.items()},
         }
     (OUT / "expected_scores.json").write_text(json.dumps(expected, ensure_ascii=False, indent=1))
+
+    # 주봉 추세선 채널 (3년치 데이터 필요)
+    from recommender.trendline import STATUS_ABOVE, STATUS_BELOW, STATUS_IN, STATUS_NEAR, fit_channel, weekly
+    td, _ = make_demo_data(n_stocks=25, n_days=780, seed=5)
+    td[["open", "high", "low", "close"]] = td[["open", "high", "low", "close"]].round(0)
+    td["volume"] = td["volume"].round(0)
+    td["date"] = td["date"].dt.strftime("%Y-%m-%d")
+    td[["ticker", "date", "open", "high", "low", "close", "volume"]].to_csv(OUT / "trend_daily.csv", index=False)
+    td = pd.read_csv(OUT / "trend_daily.csv", dtype={"ticker": str}, parse_dates=["date"])
+    channels = {}
+    for t, g in td.groupby("ticker"):
+        ch = fit_channel(weekly(g))
+        channels[t] = None if ch is None else {
+            "status": ch["status"], "upper": ch["upper"], "lower": ch["lower"], "width": ch["width"],
+            "touches": ch["touches"], "start_date": str(ch["start_date"].date()),
+            "pivot2_date": str(ch["pivot2_date"].date()), "trend_per_year": ch["trend_per_year"],
+        }
+    (OUT / "expected_trend.json").write_text(json.dumps(channels, ensure_ascii=False, indent=1))
+    print("채널", sum(v is not None for v in channels.values()), "개 /", len(channels))
     print("픽스처 저장:", OUT)
 
 
