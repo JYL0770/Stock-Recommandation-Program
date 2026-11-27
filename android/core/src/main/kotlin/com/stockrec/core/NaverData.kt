@@ -36,7 +36,7 @@ class NaverClient(
     fun fetchTopByMarketCap(market: String, n: Int): List<StockInfo> {
         val out = mutableListOf<StockInfo>()
         var page = 1
-        while (out.size < n && page <= 20) {
+        while (out.size < n && page <= 60) {
             val text = get("https://m.stock.naver.com/api/stocks/marketValue/$market?page=$page&pageSize=100")
             val items = NaverParser.parseMarketValue(text, market)
             if (items.isEmpty()) break
