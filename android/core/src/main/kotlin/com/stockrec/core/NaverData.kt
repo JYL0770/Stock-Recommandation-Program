@@ -124,8 +124,13 @@ object NaverParser {
         val a = xml.indexOf(" $name=\"", t).takeIf { it in t..close } ?: return null
         val start = a + name.length + 3
         val end = xml.indexOf('"', start).takeIf { it in start..close } ?: return null
-        return xml.substring(start, end)
+        return unescapeXml(xml.substring(start, end))
     }
+
+    /** XML 속성값의 엔티티 복원 (예: KT&amp;G → KT&G) */
+    fun unescapeXml(s: String): String =
+        if ('&' !in s) s
+        else s.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&apos;", "'").replace("&amp;", "&")
 
     /** m.stock.naver.com marketValue JSON → 보통주 목록 (ETF·ETN·우선주 등 제외) */
     fun parseMarketValue(text: String, market: String): List<StockInfo> {

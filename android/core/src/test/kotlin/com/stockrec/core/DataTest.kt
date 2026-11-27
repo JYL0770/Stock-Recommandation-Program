@@ -29,6 +29,12 @@ class DataTest {
     }
 
     @Test
+    fun decodesXmlEntitiesInName() {
+        val xml = """<chartdata symbol="033780" name="KT&amp;G" count="1"><item data="20251124|1|1|1|1|1" /></chartdata>"""
+        assertEquals("KT&G", NaverParser.parseFchart(xml).first)
+    }
+
+    @Test
     fun parsesMarketValueJson() {
         val json = """{"stocks":[
             {"itemCode":"005930","stockName":"삼성전자","stockEndType":"stock"},
