@@ -63,6 +63,8 @@ class YahooTest {
         println("TREND|US-INFO|시장별: " + series.groupingBy { it.info.market }.eachCount())
         val otcWrong = Universe.US_OTC.filter { s -> series.firstOrNull { it.info.ticker == s }?.info?.market.let { it != null && it != "OTC" } }
         println("TREND|US-INFO|OTC 목록 중 OTC 아님: $otcWrong / 최소 봉수 ${series.minOfOrNull { it.bars.size }}")
+        println("TREND|US-INFO|거래소 코드: " + series.groupingBy { "${it.info.sector}->${it.info.market}" }.eachCount())
+        println("TREND|US-INFO|봉 200개 미만: " + series.filter { it.bars.size < 200 }.map { "${it.info.ticker}(${it.bars.size}, 마지막 ${it.bars.last().date})" })
         val results = BuyZone.sort(series.map { BuyZone.evaluate(it, idx[BuyZone.indexFor(it.info.market)]) })
         println("TREND|US-INFO|매수권(4/4) ${results.count { it.buy }}개, 종목 일봉+주봉 ${results.count { it.stockOk }}개, " +
             "일봉 ${results.count { it.ok(Check.STOCK_DAILY) }}개, 주봉 ${results.count { it.ok(Check.STOCK_WEEKLY) }}개")

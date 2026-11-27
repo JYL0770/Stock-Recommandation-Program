@@ -9,8 +9,6 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -29,25 +27,21 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.stockrec.app.ui.AppTheme
-import com.stockrec.app.ui.BacktestScreen
+import com.stockrec.app.ui.BuyZoneScreen
 import com.stockrec.app.ui.DetailScreen
 import com.stockrec.app.ui.HelpScreen
-import com.stockrec.app.ui.ScoreScreen
-import com.stockrec.app.ui.SettingsScreen
-import com.stockrec.app.ui.BuyZoneScreen
 import com.stockrec.app.ui.IndexDetailScreen
+import com.stockrec.app.ui.PriceFormat
+import com.stockrec.app.ui.SettingsScreen
 
 enum class Tab(val label: String, val icon: ImageVector) {
     RECOMMEND("추천", Icons.Filled.Star),
-    SCORE("점수순위", Icons.Filled.ThumbUp),
-    BACKTEST("백테스트", Icons.Filled.DateRange),
     SETTINGS("설정", Icons.Filled.Settings),
     HELP("도움말", Icons.Filled.Info),
 }
@@ -58,35 +52,37 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // 자동 스크린샷(CI)용 실행 옵션: --ez demo true --es tab backtest --es open 900000 --ez run_backtest true
+        // 자동 스크린샷(CI)용 실행 옵션: --es region us --ez demo true --es tab settings --es open TREND_FIRST|IDX:^GSPC
         val ex = intent?.extras
-        if (savedInstanceState == null && ex?.getBoolean("demo") == true) vm.forceDemoSession()
+        if (savedInstanceState == null) {
+            ex?.getString("region")?.let { r ->
+                Region.entries.firstOrNull { it.name.equals(r, true) }?.let { reg -> vm.updateSettings { it.copy(region = reg) } }
+            }
+            if (ex?.getBoolean("demo") == true) vm.forceDemoSession()
+        }
         val startTab = ex?.getString("tab")?.let { t -> Tab.entries.firstOrNull { it.name.equals(t, true) } } ?: Tab.RECOMMEND
         val startOpen = ex?.getString("open")
-        val autoBacktest = ex?.getBoolean("run_backtest") == true
 
         setContent {
-            AppTheme { App(vm, startTab, startOpen, autoBacktest) }
+            AppTheme { App(vm, startTab, startOpen) }
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Boolean) {
+fun App(vm: MainViewModel, startTab: Tab, startOpen: String?) {
     val state by vm.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableStateOf(startTab) }
     var openTicker by rememberSaveable { mutableStateOf(startOpen) }
+    // 가격 표시: 해외 데이터면 달러 소수점
+    PriceFormat.foreign = (state.loadedRegion ?: state.settings.region) == Region.US
 
     // CI 스크린샷용: --es open TREND_FIRST → 매수권(없으면 종목 조건 충족) 첫 종목 상세
     LaunchedEffect(state.buyZone) {
         if (startOpen == "TREND_FIRST" && openTicker == "TREND_FIRST") {
             (state.buyZone.firstOrNull { it.buy } ?: state.buyZone.firstOrNull { it.stockOk })?.let { openTicker = it.info.ticker }
         }
-    }
-
-    LaunchedEffect(state.nStocks, autoBacktest) {
-        if (autoBacktest && state.nStocks > 0 && state.backtest == null && !state.backtestRunning) vm.runBacktest()
     }
 
     val detail = openTicker?.let { vm.features[it] }
@@ -102,14 +98,15 @@ fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Bool
                     Column {
                         Text(
                             detail?.info?.name ?: indexDetail?.let { "${it.series.info.name} 지수" }
-                                ?: when (tab) { Tab.RECOMMEND -> "주식 추천"; Tab.SCORE -> "지표 점수 순위"; else -> tab.label },
+                                ?: if (tab == Tab.RECOMMEND) "주식 추천" else tab.label,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                         if (!inDetail && tab == Tab.RECOMMEND) {
-                            Text("추세선 채널 · 종목·지수 일봉/주봉 4개 차트", style = MaterialTheme.typography.labelSmall)
+                            Text("${state.settings.region.label} · 종목·지수 일봉/주봉 추세선 채널",
+                                style = MaterialTheme.typography.labelSmall)
                         }
-                        if (!inDetail && tab == Tab.SCORE) {
-                            Text("가격 지표 점수 · ${state.settings.strategy.name}", style = MaterialTheme.typography.labelSmall)
+                        if (detail != null) {
+                            Text("${detail.info.ticker} · ${detail.info.market}", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 },
@@ -119,7 +116,7 @@ fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Bool
                     }
                 },
                 actions = {
-                    if (!inDetail && (tab == Tab.RECOMMEND || tab == Tab.SCORE)) {
+                    if (!inDetail && tab == Tab.RECOMMEND) {
                         IconButton(onClick = { vm.reload(force = true) }, enabled = !state.loading) {
                             Icon(Icons.Filled.Refresh, contentDescription = "새로고침")
                         }
@@ -149,8 +146,7 @@ fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Bool
         },
     ) { padding ->
         if (detail != null) {
-            val (scored, inPool) = remember(detail, state.settings, state.nStocks) { vm.scoredFor(detail.info.ticker) }
-            DetailScreen(detail, scored, inPool, state.settings.weights, vm.buyZoneFor(detail.info.ticker), padding)
+            DetailScreen(detail, vm.buyZoneFor(detail.info.ticker), padding)
             return@Scaffold
         }
         if (indexDetail != null) {
@@ -161,24 +157,10 @@ fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Bool
             Tab.RECOMMEND -> BuyZoneScreen(
                 state,
                 onWidth = { w -> vm.updateSettings { it.copy(trendWidth = w) } },
+                onRegion = { r -> vm.updateSettings { it.copy(region = r) } },
                 onOpen = { openTicker = it },
                 onRetry = { vm.reload(force = true) },
                 onUseDemo = { vm.updateSettings { it.copy(source = DataSource.DEMO) } },
-                contentPadding = padding,
-            )
-            Tab.SCORE -> ScoreScreen(
-                state,
-                onSelectStrategy = vm::selectStrategy,
-                onOpen = { openTicker = it },
-                onRetry = { vm.reload(force = true) },
-                onUseDemo = { vm.updateSettings { it.copy(source = DataSource.DEMO) } },
-                contentPadding = padding,
-            )
-            Tab.BACKTEST -> BacktestScreen(
-                state,
-                nameOf = { t -> vm.features[t]?.info?.name ?: t },
-                onParams = { n, h -> vm.setBacktestParams(n, h) },
-                onRun = vm::runBacktest,
                 contentPadding = padding,
             )
             Tab.SETTINGS -> SettingsScreen(

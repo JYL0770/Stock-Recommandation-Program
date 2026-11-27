@@ -31,19 +31,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.stockrec.core.F
-import com.stockrec.core.Factor
 import com.stockrec.core.FeatureSeries
-import com.stockrec.core.Scored
-import com.stockrec.core.Scoring
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DetailScreen(
     fs: FeatureSeries,
-    scored: Scored?,
-    inPool: Boolean,
-    weights: Map<Factor, Double>,
     buyZone: com.stockrec.core.BuyZoneResult?,
     contentPadding: PaddingValues,
 ) {
@@ -126,38 +120,6 @@ fun DetailScreen(
             Modifier.fillMaxWidth().height(90.dp),
             yMin = 0.0, yMax = 100.0, hLines = listOf(30.0, 70.0), yFormat = { fmtNum(it, 0) },
         )
-
-        if (scored != null) {
-            SectionTitle("팩터 점수 ${if (!scored.score.isNaN()) "· 종합 ${fmtNum(scored.score)}점" else ""}")
-            if (!inPool) {
-                Text("※ 현재 필터를 통과하지 못해 전체 종목 기준으로 계산했습니다.",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-            }
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (f in Factor.entries) {
-                        val v = scored.factors[f] ?: Double.NaN
-                        if (v.isNaN()) continue
-                        val w = weights[f] ?: 0.0
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(f.label + if (w > 0) " (${w.toInt()})" else "", Modifier.width(120.dp),
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = if (w > 0) FontWeight.Bold else FontWeight.Normal)
-                            ScoreBar(v, Modifier.weight(1f),
-                                if (w > 0) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.outline)
-                            Text(fmtNum(v, 0), Modifier.width(36.dp).padding(start = 8.dp), style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
-            }
-
-            val reasons = Scoring.reasons(scored)
-            val warnings = Scoring.warnings(scored.snap)
-            SectionTitle("판단 근거")
-            for (r in reasons) Text("✓ $r", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(vertical = 2.dp))
-            for (w in warnings) Text("⚠ $w", style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 2.dp))
-        }
 
         SectionTitle("지표")
         Card(Modifier.fillMaxWidth()) {

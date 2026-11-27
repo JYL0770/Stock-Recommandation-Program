@@ -1,7 +1,6 @@
 package com.stockrec.app.ui
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,9 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -36,9 +33,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.stockrec.app.DataSource
+import com.stockrec.app.Region
 import com.stockrec.app.Settings
-import com.stockrec.core.Factor
-import com.stockrec.core.STRATEGIES
+import com.stockrec.app.StockRepository
+import com.stockrec.core.Universe
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -64,31 +62,40 @@ fun SettingsScreen(
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
                 for (src in DataSource.entries) {
-                    Row(
-                        Modifier.fillMaxWidth().clickable { onChange { it.copy(source = src) } },
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = s.source == src, onClick = { onChange { it.copy(source = src) } })
-                        Text(src.label)
-                    }
+                    RadioRow(src.label, s.source == src) { onChange { it.copy(source = src) } }
                 }
-                if (s.source == DataSource.LIVE) {
-                    IntSlider("코스피 시가총액 상위", s.kospiCount, 0..300, 10, "개") { v -> onChange { it.copy(kospiCount = v) } }
-                    IntSlider("코스닥 시가총액 상위", s.kosdaqCount, 0..300, 10, "개") { v -> onChange { it.copy(kosdaqCount = v) } }
-                    var custom by rememberSaveable { mutableStateOf(s.customTickers.joinToString(", ")) }
-                    OutlinedTextField(
-                        value = custom,
-                        onValueChange = { text ->
-                            custom = text
-                            val list = text.split(',', ' ', '\n').map { it.trim() }.filter { it.length == 6 }.distinct()
-                            onChange { it.copy(customTickers = list) }
-                        },
-                        label = { Text("직접 추가할 종목코드 (쉼표 구분)") },
-                        placeholder = { Text("예: 005930, 000660") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    )
-                    Text("종목 수가 많을수록 처음 받는 시간이 길어집니다 (150종목 약 10~30초). 받은 데이터는 3시간 동안 저장해 둡니다.",
+                Text("시장", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+                for (r in Region.entries) {
+                    RadioRow("${r.label} — ${r.source}", s.region == r) { onChange { it.copy(region = r) } }
+                }
+            }
+        }
+
+        // -------------------------------------------------- 종목 범위
+        if (s.source == DataSource.LIVE) {
+            SectionTitle(if (s.region == Region.KR) "국내 종목 범위" else "해외 종목 범위")
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    if (s.region == Region.KR) {
+                        IntSlider("코스피 시가총액 상위", s.kospiCount, 0..300, 10, "개") { v -> onChange { it.copy(kospiCount = v) } }
+                        IntSlider("코스닥 시가총액 상위", s.kosdaqCount, 0..300, 10, "개") { v -> onChange { it.copy(kosdaqCount = v) } }
+                        CustomField(
+                            initial = s.customTickers.joinToString(", "),
+                            label = "직접 추가할 종목코드 (쉼표 구분)", placeholder = "예: 005930, 000660",
+                            parse = { t -> t.split(',', ' ', '\n').map { it.trim() }.filter { it.length == 6 }.distinct() },
+                        ) { list -> onChange { it.copy(customTickers = list) } }
+                    } else {
+                        SwitchRow("미국 대형주 (NYSE·NASDAQ) ${Universe.US_LARGE.size}개", s.usLarge) { on -> onChange { it.copy(usLarge = on) } }
+                        SwitchRow("장외시장 OTC·핑크시트 ${Universe.US_OTC.size}개 (해외 대형주 ADR 등)", s.usOtc) { on -> onChange { it.copy(usOtc = on) } }
+                        CustomField(
+                            initial = s.usCustom.joinToString(", "),
+                            label = "직접 추가할 심볼 (Yahoo 기준, 쉼표 구분)", placeholder = "예: AAPL, NSRGY, BRK-B",
+                            parse = { t -> t.split(',', ' ', '\n').map(StockRepository::cleanUsSymbol).filter { it.isNotEmpty() }.distinct() },
+                        ) { list -> onChange { it.copy(usCustom = list) } }
+                        Text("핑크시트 종목도 심볼만 알면 추가할 수 있습니다. 시장(NYSE/NASDAQ/OTC)은 시세에서 자동으로 구분합니다.",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Text("종목 수가 많을수록 처음 받는 시간이 길어집니다. 받은 데이터는 3시간 동안 저장해 둡니다.",
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
@@ -99,70 +106,48 @@ fun SettingsScreen(
             }
         }
 
-        // -------------------------------------------------- 전략 / 가중치
-        SectionTitle("전략 · 팩터 가중치")
-        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            STRATEGIES.forEachIndexed { i, st ->
-                FilterChip(
-                    selected = s.strategyIndex == i,
-                    onClick = { onChange { it.copy(strategyIndex = i, weights = st.weights) } },
-                    label = { Text(st.name, style = MaterialTheme.typography.labelSmall) },
-                )
-            }
-        }
+        // -------------------------------------------------- 추세선
+        SectionTitle("추세선 채널")
         Card(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(12.dp)) {
-                for (f in Factor.entries) {
-                    val w = (s.weights[f] ?: 0.0).roundToInt()
-                    IntSlider(f.label, w, 0..100, 5, "") { v -> onChange { it.copy(weights = it.weights + (f to v.toDouble())) } }
-                    Text(f.help, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(6.dp))
+                IntSlider("채널 폭 (상단선 = 지지선 × (1+폭))", (s.trendWidth * 100).roundToInt(), 5..20, 1, "%") { v ->
+                    onChange { it.copy(trendWidth = v / 100.0) }
                 }
-                if (s.isCustomWeights) {
-                    TextButton(onClick = { onChange { it.copy(weights = it.strategy.weights) } }) { Text("'${s.strategy.name}' 기본값으로 되돌리기") }
-                }
-                if (s.source == DataSource.LIVE && (s.weights[Factor.VALUE] ?: 0.0) > 0) {
-                    Text("※ 실시간 모드에는 PER·PBR·ROE 데이터가 없어 밸류 팩터는 제외되고 나머지 가중치로 계산됩니다.",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                }
-            }
-        }
-
-        // -------------------------------------------------- 필터
-        SectionTitle("필터")
-        Card(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(12.dp)) {
-                IntSlider("20일 평균 거래대금 하한", s.minAmountEok.roundToInt(), 0..500, 5, "억원") { v ->
-                    onChange { it.copy(minAmountEok = v.toDouble()) }
-                }
-                IntSlider("최소 데이터 일수", s.minDays, 60..500, 10, "일") { v -> onChange { it.copy(minDays = v) } }
-                IntSlider("추천 종목 수", s.topN, 5..50, 1, "개") { v -> onChange { it.copy(topN = v) } }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("RSI 과열 종목 제외", Modifier.weight(1f))
-                    Switch(checked = s.maxRsi != null, onCheckedChange = { on -> onChange { it.copy(maxRsi = if (on) 80.0 else null) } })
-                }
-                s.maxRsi?.let { r ->
-                    IntSlider("RSI 상한", r.roundToInt(), 50..95, 1, "") { v -> onChange { it.copy(maxRsi = v.toDouble()) } }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("120일선 위 종목만", Modifier.weight(1f))
-                    Switch(checked = s.aboveMa120, onCheckedChange = { on -> onChange { it.copy(aboveMa120 = on) } })
-                }
-                Text("시장", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
-                Row {
-                    for (m in listOf("KOSPI", "KOSDAQ", "직접추가")) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(checked = m in s.markets, onCheckedChange = { on ->
-                                onChange { it.copy(markets = if (on) it.markets + m else it.markets - m) }
-                            })
-                            Text(m, style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-                }
+                Text("지지선은 일봉 최근 1년·주봉 최근 3년에서, 연 20% 이상 오르며 저점이 3번 이상 닿은 선을 자동으로 찾습니다.",
+                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
+@Composable
+private fun RadioRow(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick), verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected = selected, onClick = onClick)
+        Text(label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun CustomField(initial: String, label: String, placeholder: String, parse: (String) -> List<String>, onList: (List<String>) -> Unit) {
+    var text by rememberSaveable(label) { mutableStateOf(initial) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = { t -> text = t; onList(parse(t)) },
+        label = { Text(label) },
+        placeholder = { Text(placeholder) },
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+    )
 }
 
 @Composable

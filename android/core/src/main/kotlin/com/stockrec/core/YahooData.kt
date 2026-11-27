@@ -99,6 +99,7 @@ object YahooParser {
 
         fun str(k: String) = (meta[k] as? JsonPrimitive)?.contentOrNull?.takeIf { it.isNotBlank() }
         val name = str("longName") ?: str("shortName") ?: symbol
-        return StockSeries(StockInfo(symbol, name, marketOf(str("exchangeName"))), bars)
+        // sector 칸에 원래 거래소 코드 보관 (예: NMS, NYQ, PNK)
+        return StockSeries(StockInfo(symbol, name, marketOf(str("exchangeName")), sector = str("exchangeName") ?: ""), bars)
     }
 }

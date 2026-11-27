@@ -50,8 +50,20 @@ fun AppTheme(content: @Composable () -> Unit) =
 
 // ------------------------------------------------------------------ 포맷
 private val priceFmt = DecimalFormat("#,##0")
+private val usdFmt = DecimalFormat("#,##0.00")
+private val pennyFmt = DecimalFormat("0.0000")
 
-fun fmtPrice(x: Double) = if (x.isNaN()) "-" else priceFmt.format(x)
+/** 가격 표시 방식: 국내 = 원 단위 정수, 해외 = 달러 소수 (1달러 미만 페니주는 소수 4자리) */
+object PriceFormat {
+    @Volatile var foreign: Boolean = false
+}
+
+fun fmtPrice(x: Double) = when {
+    x.isNaN() -> "-"
+    !PriceFormat.foreign -> priceFmt.format(x)
+    kotlin.math.abs(x) < 1 -> pennyFmt.format(x)
+    else -> usdFmt.format(x)
+}
 fun fmtPct(x: Double, digits: Int = 1) = if (x.isNaN()) "-" else String.format(Locale.US, "%+.${digits}f%%", x * 100)
 fun fmtNum(x: Double, digits: Int = 1) = if (x.isNaN()) "-" else String.format(Locale.US, "%.${digits}f", x)
 fun signColor(x: Double, neutral: Color) = when {
@@ -62,6 +74,7 @@ fun signColor(x: Double, neutral: Color) = when {
 
 fun fmtFeature(key: String, v: Double): String = when {
     v.isNaN() -> "-"
+    key == F.AMOUNT_20 && PriceFormat.foreign -> "${usdFmt.format(v)}백만$"
     key == F.AMOUNT_20 -> "${priceFmt.format(v / 100)}억"
     key == F.HIGH_52W -> fmtPct(v - 1)
     key == F.N_DAYS -> "${v.toInt()}일"

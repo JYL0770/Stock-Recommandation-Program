@@ -43,6 +43,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.stockrec.app.DataSource
 import com.stockrec.app.UiState
+import com.stockrec.app.Region
+import com.stockrec.app.StockRepository
+import com.stockrec.core.BuyZone
 import com.stockrec.core.BuyZoneResult
 import com.stockrec.core.Channel
 import com.stockrec.core.Check
@@ -59,7 +62,7 @@ private val OkGreen = Color(0xFF2E7D32)
 
 private enum class BzFilter(val label: String) { BUY("매수권 (4/4)"), STOCK("종목 조건 충족") }
 
-private val INDEX_NAMES = mapOf("KOSPI" to "코스피", "KOSDAQ" to "코스닥")
+private val INDEX_NAMES = (BuyZone.KR_INDEXES + BuyZone.US_INDEXES).toMap()
 
 /** 추천 탭: 스크린샷 방식 추세선 채널 — 종목 일봉·주봉 + 지수 일봉·주봉 모두 매수권 */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +70,7 @@ private val INDEX_NAMES = mapOf("KOSPI" to "코스피", "KOSDAQ" to "코스닥")
 fun BuyZoneScreen(
     state: UiState,
     onWidth: (Double) -> Unit,
+    onRegion: (Region) -> Unit,
     onOpen: (String) -> Unit,
     onRetry: () -> Unit,
     onUseDemo: () -> Unit,
@@ -76,6 +80,8 @@ fun BuyZoneScreen(
     val buy = state.buyZone.filter { it.buy }
     val stockOnly = state.buyZone.filter { it.stockOk && !it.buy }
     val list = if (filter == BzFilter.BUY) buy else stockOnly
+    val region = state.settings.region
+    val indexCodes = StockRepository.indexesOf(region).map { it.first }
 
     LazyColumn(
         Modifier.fillMaxSize(),
@@ -87,6 +93,12 @@ fun BuyZoneScreen(
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (r in Region.entries) {
+                    FilterChip(selected = region == r, onClick = { onRegion(r) },
+                        label = { Text(r.label, fontWeight = if (region == r) FontWeight.Bold else FontWeight.Normal) })
+                }
+            }
             Text(
                 "상승 추세의 저점을 가장 많이 잇는 지지선과 그 위 평행선 사이에 마지막 종가가 있으면 그 차트는 매수권입니다. " +
                     "종목 일봉·주봉과 지수 일봉·주봉, 4개 차트가 모두 매수권이어야 추천합니다.",
@@ -100,7 +112,7 @@ fun BuyZoneScreen(
         if (state.indexes.isNotEmpty() || (!state.loading && state.nStocks > 0)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (code in listOf("KOSPI", "KOSDAQ")) {
+                    for (code in indexCodes) {
                         IndexCard(code, state.indexes[code], Modifier.weight(1f)) { onOpen("IDX:$code") }
                     }
                 }
@@ -167,7 +179,7 @@ private fun LoadStatus(state: UiState, onRetry: () -> Unit, onUseDemo: () -> Uni
                         LabeledValue("분석 종목", "${state.nStocks}")
                         LabeledValue("매수권", if (state.buyZoneComputing) "계산 중" else "${state.buyZone.count { it.buy }}")
                     }
-                    val src = if (state.settings.source == DataSource.DEMO) "데모(가상) 데이터" else "네이버 금융 시세"
+                    val src = if (state.settings.source == DataSource.DEMO) "데모(가상) 데이터" else "${state.settings.region.source} 시세"
                     val time = state.fetchedAt?.let { SimpleDateFormat("MM/dd HH:mm", Locale.KOREA).format(Date(it)) } ?: ""
                     Text("$src · ${state.universeNote} · $time 수신${if (state.fromCache) "(캐시)" else ""}" +
                         if (state.failed.isNotEmpty()) " · 실패 ${state.failed.size}" else "",
@@ -187,13 +199,14 @@ private fun EmptyExplanation(buyTab: Boolean, state: UiState, nStockOnly: Int) {
                 return@Column
             }
             Text("오늘은 4개 조건을 모두 만족하는 종목이 없습니다.", fontWeight = FontWeight.Bold)
-            val bad = listOf("KOSPI", "KOSDAQ").filter { state.indexes[it]?.ok != true }
+            val bad = StockRepository.indexesOf(state.settings.region).map { it.first }.filter { state.indexes[it]?.ok != true }
             if (bad.isNotEmpty()) {
                 Text("지수 조건 미충족: " + bad.joinToString(", ") { code ->
                     val st = state.indexes[code]
                     "${INDEX_NAMES[code]} (일봉 ${statusText(st?.daily)}, 주봉 ${statusText(st?.weekly)})"
                 }, style = MaterialTheme.typography.bodySmall)
-                Text("해당 시장의 종목은 지수가 다시 상승 추세 채널 안으로 들어올 때까지 추천되지 않습니다.",
+                Text(if (state.settings.region == Region.KR) "해당 시장의 종목은 지수가 다시 상승 추세 채널 안으로 들어올 때까지 추천되지 않습니다."
+                    else "나스닥 상장 종목은 나스닥 종합, NYSE·OTC(핑크시트) 종목은 S&P 500 지수를 기준으로 판정합니다.",
                     style = MaterialTheme.typography.bodySmall)
             }
             if (nStockOnly > 0) {
@@ -219,7 +232,7 @@ private fun IndexCard(code: String, st: IndexState?, modifier: Modifier, onClick
                 )
             }
             if (st != null) {
-                Text(fmtNum(st.series.bars.last().close, 2), style = MaterialTheme.typography.bodyMedium)
+                Text(fmtIndex(st.series.bars.last().close), style = MaterialTheme.typography.bodyMedium)
                 CheckLine("일봉", st.daily)
                 CheckLine("주봉", st.weekly)
             }
@@ -365,7 +378,7 @@ fun IndexDetailScreen(st: IndexState, contentPadding: PaddingValues) {
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(fmtNum(st.series.bars.last().close, 2), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+        Text(fmtIndex(st.series.bars.last().close), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
         Text(if (st.ok) "지수 조건 충족 (일봉·주봉 모두 매수권)" else "지수 조건 미충족 → 이 시장 종목은 추천되지 않음",
             color = if (st.ok) OkGreen else MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         st.daily?.let { ChannelChart(it, "일봉") } ?: NoChannelChart("일봉", st.series.bars.takeLast(250))
@@ -374,3 +387,6 @@ fun IndexDetailScreen(st: IndexState, contentPadding: PaddingValues) {
         Spacer(Modifier.height(16.dp))
     }
 }
+
+private val indexFmt = java.text.DecimalFormat("#,##0.00")
+fun fmtIndex(x: Double): String = if (x.isNaN()) "-" else indexFmt.format(x)

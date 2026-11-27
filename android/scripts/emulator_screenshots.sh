@@ -11,32 +11,33 @@ read -r W H < <(adb shell wm size | tail -1 | sed -E 's/.*: ([0-9]+)x([0-9]+).*/
 cap() { adb exec-out screencap -p > "$OUT/$1.png"; }
 shot() { sleep "$2"; cap "$1"; }
 launch() { adb shell am force-stop $PKG; adb logcat -c; adb shell am start -W -n $ACT "$@"; }
-applog() {  # 앱 프로세스 로그 + 시스템의 앱 관련 로그
+swipe() { adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/5)) 400; }
+applog() {
   adb logcat -d | grep -iE "stockrec|FATAL|AndroidRuntime|ANR in|lowmemory|Fatal signal|am_kill|am_proc_died|beginning of crash" > "$OUT/$1.txt" || true
   adb shell dumpsys activity activities | grep -iE "ResumedActivity|topResumed" >> "$OUT/$1.txt" || true
 }
 
-# 1) 실시간 모드(기본): 네이버 시세를 실제로 받아 추천
-launch
-shot 01a_live_5s 5
-shot 01b_live_20s 15
-shot 01c_live_45s 25
-shot 01d_live_90s 45
-applog logcat_live
-adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 01e_live_scrolled 2
-# 실시간 데이터(캐시) 화면들
-launch --es open IDX:KOSPI;                              shot 07_live_index_kospi 15
-adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 07b_live_index_scrolled 2
-launch --es open TREND_FIRST;                            shot 08_live_stock_detail 15
-adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/5)) 400; shot 08b_live_stock_detail_scrolled 2
-launch --es tab score;                                   shot 09_live_score 12
+# 1) 국내 실시간
+launch --es region kr
+shot 01a_kr_live_20s 20
+shot 01b_kr_live_60s 40
+applog logcat_kr
+swipe; shot 01c_kr_scrolled 2
+launch --es region kr --es open TREND_FIRST;            shot 02_kr_stock_detail 12
 
-# 2) 데모 모드 화면들
-launch --ez demo true;                                   shot 02_demo_recommend 15
-launch --ez demo true --es open 900610;                  shot 03_demo_detail 10
-adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/5)) 400; shot 04_demo_detail_scrolled 3
-launch --ez demo true --es tab backtest --ez run_backtest true; shot 05_demo_backtest 15
-adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 05b_demo_backtest_scrolled 3
-launch --ez demo true --es tab settings;                 shot 06_settings 6
+# 2) 해외 실시간 (미국·핑크시트)
+launch --es region us
+shot 03a_us_live_30s 30
+shot 03b_us_live_90s 60
+applog logcat_us
+swipe; shot 03c_us_scrolled 2
+launch --es region us --es open TREND_FIRST;            shot 04_us_stock_detail 12
+swipe; shot 04b_us_stock_detail_scrolled 2
+launch --es region us --es open 'IDX:^GSPC';            shot 05_us_index_sp500 12
+launch --es region us --es tab settings;                shot 06_us_settings 6
+
+# 3) 데모
+launch --es region us --ez demo true;                   shot 07_us_demo 15
+launch --es region kr --ez demo true;                   shot 08_kr_demo 15
 applog logcat_demo
 ls -la "$OUT"
