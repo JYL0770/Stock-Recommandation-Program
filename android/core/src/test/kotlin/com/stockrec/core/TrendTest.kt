@@ -129,6 +129,12 @@ class TrendTest {
             }
             println("TREND|HYNIXW|" + w.takeLast(150).joinToString(";") { "${it.date},${it.low.toLong()},${it.close.toLong()}" })
         }
+        // 알고리즘 튜닝용: 전체 주봉 덤프 (WEEKLY|ticker|name|market|date,o,h,l,c;...)
+        for (s in series) {
+            val w = TrendChannel.weekly(s.bars).takeLast(160)
+            println("WEEKLY|${s.info.ticker}|${s.info.name}|${s.info.market}|" +
+                w.joinToString(";") { "${it.date},${it.open.toLong()},${it.high.toLong()},${it.low.toLong()},${it.close.toLong()}" })
+        }
         assertTrue(series.size > 100)
     }
 }
