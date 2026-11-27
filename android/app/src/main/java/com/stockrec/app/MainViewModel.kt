@@ -4,6 +4,9 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockrec.core.Backtest
+import com.stockrec.core.Channel
+import com.stockrec.core.ChannelParams
+import com.stockrec.core.TrendChannel
 import com.stockrec.core.BacktestResult
 import com.stockrec.core.FeatureSeries
 import com.stockrec.core.Indicators
@@ -40,6 +43,8 @@ data class UiState(
     val backtestRunning: Boolean = false,
     val backtestTopN: Int = 10,
     val backtestHold: Int = 20,
+    /** 주봉 추세선 채널 (모든 상태) */
+    val channels: List<Channel> = emptyList(),
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -86,6 +91,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 rescore()
+                recomputeChannels()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -109,6 +115,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    private var channelJob: Job? = null
+
+    private fun recomputeChannels() {
+        channelJob?.cancel()
+        val width = _state.value.settings.trendWidth
+        val feats = features.values.toList()
+        channelJob = viewModelScope.launch {
+            val chs = withContext(Dispatchers.Default) {
+                val p = ChannelParams(width = width)
+                TrendChannel.sort(feats.mapNotNull { TrendChannel.fit(it.info, TrendChannel.weekly(it.bars), p) })
+            }
+            _state.update { it.copy(channels = chs) }
+        }
+    }
+
+    fun channelFor(ticker: String): Channel? = _state.value.channels.firstOrNull { it.info.ticker == ticker }
+
     /** 상세 화면용: 이 종목의 팩터 점수 (필터 통과 못 하면 전체 기준) */
     fun scoredFor(ticker: String): Pair<Scored?, Boolean> {
         val s = _state.value.settings
@@ -124,7 +147,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val new = transform(old)
         store.save(new)
         _state.update { it.copy(settings = new, backtest = if (new.weights != old.weights || new.filters() != old.filters()) null else it.backtest) }
-        if (new.universeKey() != loadedKey && (new.source != old.source)) reload(force = false) else rescore()
+        if (new.universeKey() != loadedKey && (new.source != old.source)) reload(force = false) else {
+            rescore()
+            if (new.trendWidth != old.trendWidth) recomputeChannels()
+        }
     }
 
     fun selectStrategy(i: Int) = updateSettings { it.copy(strategyIndex = i, weights = STRATEGIES[i].weights) }

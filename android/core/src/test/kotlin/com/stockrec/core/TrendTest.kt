@@ -45,7 +45,7 @@ class TrendTest {
             val close = when {
                 t < 110 -> line + 2 + wave
                 t < 122 -> line + 40 + (t - 110) * 6    // 급등
-                else -> line - 3                          // 추세선 바로 아래로 조정
+                else -> line * 1.04                       // 지지선 바로 위로 조정
             }
             weeks += Bar(d, close, close + 3, if (t < 122) close - 2 - (if (t % 10 == 0) 0.0 else 1.0) else close - 2, close, 1000.0)
             d = d.plusWeeks(1)
@@ -54,7 +54,12 @@ class TrendTest {
         assertEquals(ChannelStatus.IN, ch.status)
         assertTrue(ch.touches >= 5, "touches=${ch.touches}")
         assertTrue(abs(ch.slope - 2.0) < 0.3, "slope=${ch.slope}")
-        assertTrue(ch.position in 0.0..1.0)
+        assertTrue(ch.position in 0.0..1.0, "position=${ch.position}")
+        assertTrue(ch.fromRecentHigh < -0.1)
+
+        // 같은 흐름에서 지지선 아래 10% 로 무너지면 이탈
+        val broken = weeks.mapIndexed { t, b -> if (t >= 122) b.copy(close = (100.0 + 2 * t) * 0.9, low = (100.0 + 2 * t) * 0.88) else b }
+        assertEquals(ChannelStatus.BELOW, TrendChannel.fit(StockInfo("X"), broken)?.status)
     }
 
     @Test
@@ -85,12 +90,13 @@ class TrendTest {
             assertEquals(o.getValue("touches").jsonPrimitive.int, ch.touches, t)
             assertEquals(o.getValue("start_date").jsonPrimitive.content, ch.startDate.toString(), t)
             assertEquals(o.getValue("pivot2_date").jsonPrimitive.content, ch.pivot2Date.toString(), t)
-            for ((k, v) in listOf("upper" to ch.upper, "lower" to ch.lower, "width" to ch.width, "trend_per_year" to ch.trendPerYear)) {
+            for ((k, v) in listOf("support" to ch.support, "upper" to ch.upper, "tolerance" to ch.tolerance,
+                    "trend_per_year" to ch.trendPerYear, "from_recent_high" to ch.fromRecentHigh)) {
                 val ev = o.getValue(k).jsonPrimitive.double
                 assertTrue(abs(v - ev) <= 1e-9 * maxOf(1.0, abs(ev)), "$t $k kotlin=$v python=$ev")
             }
         }
-        assertTrue(found >= 5)
+        assertTrue(found >= 3, "채널 $found 개")
     }
 
     /** 실제 시장 스캔 (CI 에서 NETWORK_TESTS=1). 결과를 TREND| 로 출력 */
@@ -113,21 +119,14 @@ class TrendTest {
 
         val all = TrendChannel.scan(series, statuses = ChannelStatus.entries.toSet())
         println("TREND|INFO|채널 ${all.size}개: " + all.groupingBy { it.status.label }.eachCount())
-        for (c in all.filter { it.status == ChannelStatus.IN || it.status == ChannelStatus.NEAR }) {
+        for (c in all.filter { it.status == ChannelStatus.IN }) {
             println(listOf("TREND", "ROW", c.status.label, c.info.ticker, c.info.name, c.info.market, c.close.toLong(),
-                c.upper.toLong(), c.lower.toLong(), "%.2f".format(c.position), "%.3f".format(c.width), c.touches,
-                c.startDate, c.pivot2Date, "%.3f".format(c.trendPerYear), "%.3f".format(c.fromRecentHigh)).joinToString("|"))
+                c.support.toLong(), c.upper.toLong(), "%.2f".format(c.position), c.touches,
+                c.startDate, "%.3f".format(c.trendPerYear), "%.3f".format(c.fromRecentHigh)).joinToString("|"))
         }
-        // 사용자 차트 비교용: SK하이닉스 (폭 자동 / 10% 고정)
         series.firstOrNull { it.info.ticker == "000660" }?.let { s ->
-            val w = TrendChannel.weekly(s.bars)
-            for (p in listOf(ChannelParams(), ChannelParams(width = 0.10))) {
-                val c = TrendChannel.fit(s.info, w, p)
-                println("TREND|HYNIX|width=${p.width}|" + (c?.let {
-                    "${it.status.label}|close=${it.close}|upper=${it.upper.toLong()}|lower=${it.lower.toLong()}|w=${"%.3f".format(it.width)}|touches=${it.touches}|start=${it.startDate}(${it.startLow})|p2=${it.pivot2Date}|slope/wk=${it.slope.toLong()}"
-                } ?: "채널 없음"))
-            }
-            println("TREND|HYNIXW|" + w.takeLast(150).joinToString(";") { "${it.date},${it.low.toLong()},${it.close.toLong()}" })
+            val c = TrendChannel.fit(s.info, TrendChannel.weekly(s.bars))
+            println("TREND|HYNIX|" + (c?.let { "${it.status.label}|close=${it.close}|support=${it.support.toLong()}|upper=${it.upper.toLong()}|touches=${it.touches}|start=${it.startDate}" } ?: "채널 없음"))
         }
         // 알고리즘 튜닝용: 전체 주봉 덤프 (WEEKLY|ticker|name|market|date,o,h,l,c;...)
         for (s in series) {

@@ -17,6 +17,7 @@ from recommender import (
     recommend, run_backtest,
 )
 from recommender.scoring import apply_filters
+from recommender.trendline import STATUS_BELOW, STATUS_IN, ChannelParams, channel_lines, fit_channel, weekly
 
 st.set_page_config(page_title="주식 추천 (가격 지표)", page_icon="📈", layout="wide")
 
@@ -30,6 +31,17 @@ def load(source: str, data_dir: str):
     feats = compute_features(daily)
     snap = attach_meta(latest_snapshot(feats), meta)
     return feats, snap, meta
+
+
+@st.cache_data(show_spinner="추세선 계산 중...")
+def channels(_feats, key, width):
+    p = ChannelParams(width=width)
+    out = {}
+    for t, g in _feats.groupby("ticker"):
+        ch = fit_channel(weekly(g), p)
+        if ch is not None:
+            out[t] = ch
+    return out
 
 
 @st.cache_data(show_spinner="백테스트 실행 중...")
@@ -105,7 +117,43 @@ c4.metric("전략", strat_name)
 if source == "demo":
     st.info("데모 모드: 실제 종목이 아닌 **가상 데이터**입니다. 실제 추천은 키움 API로 데이터를 수집한 뒤 사용하세요.")
 
-tab_rec, tab_detail, tab_bt, tab_help = st.tabs(["🏆 추천 종목", "🔍 종목 상세", "🧪 백테스트", "📘 지표 설명"])
+tab_rec, tab_trend, tab_detail, tab_bt, tab_help = st.tabs(
+    ["🏆 추천 종목", "📐 추세선 매수권", "🔍 종목 상세", "🧪 백테스트", "📘 지표 설명"])
+
+# ------------------------------------------------------------------ 추세선 매수권
+with tab_trend:
+    st.caption("주봉에서 상승 추세의 저점을 가장 많이 잇는 지지선(하단선)과 그 위 평행선(상단선)을 자동으로 긋고, "
+               "현재가가 두 선 사이로 내려온 종목을 찾습니다. 지지선은 연 20% 이상 오르는 선, 저점 접점 3회 이상만 사용합니다.")
+    c1, c2 = st.columns([1, 3])
+    width = c1.select_slider("채널 폭 (상단선 = 지지선 × (1+폭))", [0.05, 0.08, 0.10, 0.15, 0.20], value=0.10,
+                             format_func=lambda x: f"{x:.0%}")
+    show = c2.radio("보기", [STATUS_IN, STATUS_BELOW, "전체"], horizontal=True)
+    chs = channels(feats, source, width)
+    rows = [{"ticker": t, **{k: v for k, v in ch.items() if not k.startswith("_")}} for t, ch in chs.items()
+            if show == "전체" or ch["status"] == show]
+    if not rows:
+        st.info("조건에 맞는 종목이 없습니다.")
+    else:
+        tv = pd.DataFrame(rows).sort_values(["touches", "position"], ascending=[False, True])
+        st.dataframe(pd.DataFrame({
+            "종목": tv["ticker"].map(label), "상태": tv["status"], "현재가": tv["close"],
+            "지지선": tv["support"], "상단선": tv["upper"], "지지선 대비": (tv["close"] / tv["support"] - 1) * 100,
+            "접점": tv["touches"], "추세 시작": tv["start_date"].dt.date,
+            "지지선 상승(연)": tv["trend_per_year"] * 100, "26주 고점 대비": tv["from_recent_high"] * 100,
+        }), hide_index=True, width="stretch", column_config={
+            "현재가": st.column_config.NumberColumn(format="%,d"), "지지선": st.column_config.NumberColumn(format="%,d"),
+            "상단선": st.column_config.NumberColumn(format="%,d"),
+            **{c: st.column_config.NumberColumn(format="%+.1f%%") for c in ("지지선 대비", "지지선 상승(연)", "26주 고점 대비")},
+        })
+        pick = st.selectbox("차트 보기", tv["ticker"].tolist(), format_func=label)
+        L = channel_lines(chs[pick])
+        cf = go.Figure(go.Candlestick(x=L["date"], open=L["open"], high=L["high"], low=L["low"], close=L["close"],
+                                      name="주봉", increasing_line_color="#d62728", decreasing_line_color="#1f77b4"))
+        cf.add_trace(go.Scatter(x=L["date"], y=L["support"], name="지지선", line=dict(color="red", width=2.5)))
+        cf.add_trace(go.Scatter(x=L["date"], y=L["upper"], name="상단선", line=dict(color="red", width=2.5)))
+        cf.update_layout(height=520, xaxis_rangeslider_visible=False, margin=dict(t=10, b=10),
+                         legend=dict(orientation="h", y=1.04))
+        st.plotly_chart(cf, width="stretch")
 
 # ------------------------------------------------------------------ 추천
 with tab_rec:

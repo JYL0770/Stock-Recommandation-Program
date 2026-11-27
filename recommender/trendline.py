@@ -1,12 +1,15 @@
-"""주봉 상승 추세선 채널 → '두 선 사이로 내려온 종목' 찾기.
+"""주봉 상승 추세선 채널 → '지지선과 그 위 평행선 사이로 내려온 종목' 찾기.
 
-차트에 손으로 긋는 방식을 그대로 옮겼습니다.
-  1) 상단선(지지선): 상승 추세 중 주봉 저점(스윙 로우)들을 가장 많이 잇는 우상향 직선.
-     추세선 시작부터 최근 조정 직전까지 주봉 종가가 이 선 아래로 크게(3% 초과) 내려간 적이 없어야 함.
-  2) 하단선: 상단선과 평행. 추세 기간 중 저점이 상단선 아래로 가장 깊게 찔렀던 폭만큼 아래 (4~15%).
-  3) 현재 주가가 두 선 사이면 '매수권', 상단선 위 2% 이내면 '상단 근접'.
+차트에 손으로 긋는 방식을 옮겼습니다.
+  1) 하단선(지지선): 상승 추세 중 주봉 저점(스윙 로우)들을 가장 많이 잇는 우상향 직선.
+     - 추세선 시작부터 최근 조정 직전까지 주봉 종가가 선 아래로 '허용폭' 넘게 내려간 적이 없어야 함
+     - 연 20% 이상 오르는 선만 (완만한 바닥선 제외)
+     - 허용폭 = max(선 값의 3%, 차트 높이(기간 최고가-최저가)의 2%)
+       → 눈으로 볼 때 '닿아 보이는' 정도. 큰 시세가 난 종목은 초반 저점에서 허용폭이 넓어짐
+  2) 상단선: 하단선과 평행, 현재 하단선 값의 10% 위 (조정 가능)
+  3) 현재가가 두 선 사이(하단선 아래 허용폭까지 포함)면 '매수권'
 
-가격 축은 일반 증권사 차트처럼 선형(로그 아님)이며, 두 선은 같은 기울기(평행)입니다.
+가격 축은 일반 증권사 차트처럼 선형이며, 두 선은 같은 기울기(평행)입니다.
 """
 from __future__ import annotations
 
@@ -16,26 +19,24 @@ import numpy as np
 import pandas as pd
 
 STATUS_IN = "매수권"
-STATUS_NEAR = "상단 근접"
-STATUS_BELOW = "하단 이탈"
-STATUS_ABOVE = "추세선 위"
+STATUS_BELOW = "지지선 이탈"
+STATUS_ABOVE = "채널 위"
 
 
 @dataclass
 class ChannelParams:
-    lookback_weeks: int = 156   # 최근 3년 주봉
-    pivot_k: int = 3            # 좌우 3주보다 낮으면 스윙 저점
-    recent_weeks: int = 8       # 최근 8주는 '조정 구간'으로 보고 추세선 유지 검사에서 제외
-    min_gap_weeks: int = 6      # 추세선을 정하는 두 저점 사이 최소 간격
-    min_span_weeks: int = 26    # 추세선 시작 ~ 현재 최소 반년
-    min_rise: float = 0.3       # 추세선 시작 → 현재 추세선 값 최소 +30%
-    close_tol: float = 0.03     # 종가가 추세선 아래 3% 까지는 허용
-    touch_tol: float = 0.04     # 저점이 추세선 ±4% 이내면 '접점'
+    lookback_weeks: int = 156       # 최근 3년 주봉
+    pivot_k: int = 3                # 좌우 3주보다 낮으면 스윙 저점
+    recent_weeks: int = 8           # 최근 8주는 '조정 구간'으로 보고 추세선 유지 검사에서 제외
+    min_gap_weeks: int = 6          # 추세선을 정하는 두 저점 사이 최소 간격
+    min_span_weeks: int = 26        # 추세선 시작 ~ 현재 최소 반년
+    min_rise: float = 0.3           # 추세선 시작 → 현재 지지선 값 최소 +30%
+    min_trend_per_year: float = 0.2 # 지지선 기울기: 현재 값 대비 연 20% 이상
+    tol_rel: float = 0.03           # 허용폭: 선 값의 3%
+    tol_chart: float = 0.02         #        또는 차트 높이의 2% 중 큰 값
     min_touches: int = 3
-    width: float | None = None  # None=자동, 아니면 현재 상단선 대비 비율 (예: 0.08)
-    min_width: float = 0.04
-    max_width: float = 0.15
-    near_tol: float = 0.02
+    width: float = 0.10             # 상단선 = 하단선 × (1 + width)
+    pullback_weeks: int = 26        # '최근 고점' 기준 기간
 
 
 def weekly(daily: pd.DataFrame) -> pd.DataFrame:
@@ -62,6 +63,11 @@ def fit_channel(w: pd.DataFrame, p: ChannelParams | None = None) -> dict | None:
         return None
     low = w["low"].to_numpy(float)
     close = w["close"].to_numpy(float)
+    chart_tol = p.tol_chart * (w["high"].max() - w["low"].min())
+
+    def tol(v):
+        return np.maximum(p.tol_rel * v, chart_tol)
+
     k = p.pivot_k
     end = n - p.recent_weeks
     pivots = [i for i in range(k, n - k)
@@ -78,77 +84,70 @@ def fit_channel(w: pd.DataFrame, p: ChannelParams | None = None) -> dict | None:
             slope = (low[b] - low[a]) / (b - a)
             if slope <= 0:
                 continue
-            line = low[a] + slope * (np.arange(a, end) - a)
-            if (close[a:end] < line * (1 - p.close_tol)).any():
+            sup_now = low[a] + slope * (n - 1 - a)
+            if sup_now / low[a] - 1 < p.min_rise or slope * 52 / sup_now < p.min_trend_per_year:
                 continue
-            upper_now = low[a] + slope * (n - 1 - a)
-            if upper_now / low[a] - 1 < p.min_rise:
+            line = low[a] + slope * (np.arange(a, end) - a)
+            if (close[a:end] < line - tol(line)).any():
                 continue
             touches = 0
             for q in pivots:
                 if a <= q < end:
                     lq = low[a] + slope * (q - a)
-                    if abs(low[q] - lq) / lq <= p.touch_tol:
+                    if abs(low[q] - lq) <= tol(lq):
                         touches += 1
             if touches < p.min_touches:
                 continue
-            key = (touches, n - 1 - a, upper_now)
+            key = (touches, sup_now)
             if best is None or key > best[0]:
                 best = (key, a, b, slope, touches)
     if best is None:
         return None
 
     _, a, b, slope, touches = best
-    upper_now = low[a] + slope * (n - 1 - a)
-    if p.width is None:
-        line = low[a] + slope * (np.arange(a, end) - a)
-        width = float(np.clip((line - low[a:end]).max() / upper_now, p.min_width, p.max_width))
-    else:
-        width = p.width
-    offset = width * upper_now
-    lower_now = upper_now - offset
+    sup = low[a] + slope * (n - 1 - a)
+    upper = sup * (1 + p.width)
+    t_now = float(tol(sup))
     c = close[-1]
-    if c < lower_now:
+    if c < sup - t_now:
         status = STATUS_BELOW
-    elif c <= upper_now:
+    elif c <= upper:
         status = STATUS_IN
-    elif c <= upper_now * (1 + p.near_tol):
-        status = STATUS_NEAR
     else:
         status = STATUS_ABOVE
-    recent_high = close[end - 1:].max()
+    recent_high = close[-p.pullback_weeks:].max()
     return {
         "status": status,
         "close": c,
-        "upper": upper_now,
-        "lower": lower_now,
-        "position": (c - lower_now) / offset,           # 0=하단선, 1=상단선
-        "width": width,
+        "support": sup,                                 # 하단선 (지지선)
+        "upper": upper,                                 # 상단선
+        "position": (c - sup) / (upper - sup),          # 0=하단선, 1=상단선
+        "tolerance": t_now,
         "touches": touches,
         "start_date": w["date"].iloc[a],
         "pivot2_date": w["date"].iloc[b],
-        "trend_per_year": slope * 52 / upper_now,       # 현재 추세선 값 대비 연간 상승 폭
+        "trend_per_year": slope * 52 / sup,             # 현재 지지선 값 대비 연간 상승 폭
         "recent_high": recent_high,
         "from_recent_high": c / recent_high - 1,
-        # 차트용: 주봉 인덱스 기준 직선 (upper(t) = start_low + slope*(t-a))
-        "_a": a, "_slope": slope, "_start_low": low[a], "_offset": offset, "_weeks": w,
+        # 차트용: support(t) = start_low + slope*(t-a)  (t = 주봉 인덱스)
+        "_a": a, "_slope": slope, "_start_low": low[a], "_offset": upper - sup, "_weeks": w,
     }
 
 
 def channel_lines(ch: dict) -> pd.DataFrame:
-    """차트용: 추세선 시작 주부터 현재까지 주봉 + 상단/하단선 값"""
+    """차트용: 주봉 + 하단선/상단선 값"""
     w = ch["_weeks"]
     t = np.arange(len(w))
-    upper = ch["_start_low"] + ch["_slope"] * (t - ch["_a"])
+    sup = ch["_start_low"] + ch["_slope"] * (t - ch["_a"])
     out = w.copy()
-    out["upper"] = np.where(t >= ch["_a"], upper, np.nan)
-    out["lower"] = out["upper"] - ch["_offset"]
+    out["support"] = np.where(t >= ch["_a"], sup, np.nan)
+    out["upper"] = out["support"] + ch["_offset"]
     return out
 
 
 def scan(daily: pd.DataFrame, meta: pd.DataFrame | None = None, p: ChannelParams | None = None,
-         statuses: tuple[str, ...] = (STATUS_IN, STATUS_NEAR)) -> pd.DataFrame:
-    """전체 종목 → 추세선 채널 목록 (기본: 매수권 + 상단 근접)"""
+         statuses: tuple[str, ...] = (STATUS_IN,)) -> pd.DataFrame:
+    """전체 종목 → 추세선 채널 목록 (기본: 매수권만). 접점 많은 순"""
     rows = []
     for t, g in daily.groupby("ticker"):
         ch = fit_channel(weekly(g), p)
@@ -161,7 +160,7 @@ def scan(daily: pd.DataFrame, meta: pd.DataFrame | None = None, p: ChannelParams
     if meta is not None and not meta.empty:
         cols = [c for c in ("ticker", "name", "market") if c in meta.columns]
         out = out.merge(meta[cols], on="ticker", how="left")
-    order = {STATUS_IN: 0, STATUS_NEAR: 1, STATUS_BELOW: 2, STATUS_ABOVE: 3}
+    order = {STATUS_IN: 0, STATUS_BELOW: 1, STATUS_ABOVE: 2}
     out["_o"] = out["status"].map(order)
-    return (out.sort_values(["_o", "touches", "trend_per_year"], ascending=[True, False, False])
+    return (out.sort_values(["_o", "touches", "position"], ascending=[True, False, True])
             .drop(columns="_o").reset_index(drop=True))

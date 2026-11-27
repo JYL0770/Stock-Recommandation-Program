@@ -83,3 +83,36 @@ def test_backtest(demo):
     assert not res.periods.empty
     assert res.equity.iloc[0].tolist() == [1.0, 1.0]
     assert set(res.stats) >= {"전략 CAGR", "벤치마크 CAGR", "전략 MDD"}
+
+
+# ---------------------------------------------------------------- 주봉 추세선 채널
+from recommender.trendline import STATUS_BELOW, STATUS_IN, fit_channel, weekly  # noqa: E402
+
+
+def _weekly_channel(after):
+    """130주: 저점이 직선(100+2t) 위로 지그재그 → 급등 → after(t) 로 조정"""
+    rows = []
+    for t in range(130):
+        line = 100 + 2 * t
+        wave = 12 * (1 - abs((t % 10) - 5) / 5)
+        c = line + 2 + wave if t < 110 else (line + 40 + (t - 110) * 6 if t < 122 else after(line))
+        lo = c - 2 - (0 if t % 10 == 0 else 1) if t < 122 else c - 2
+        rows.append({"date": pd.Timestamp("2023-01-06") + pd.Timedelta(weeks=t),
+                     "open": c, "high": c + 3, "low": lo, "close": c})
+    return pd.DataFrame(rows)
+
+
+def test_trend_channel_pullback_into_zone():
+    ch = fit_channel(_weekly_channel(lambda line: line * 1.04))
+    assert ch["status"] == STATUS_IN and ch["touches"] >= 5
+    assert 0 <= ch["position"] <= 1 and ch["from_recent_high"] < -0.1
+
+
+def test_trend_channel_breakdown():
+    assert fit_channel(_weekly_channel(lambda line: line * 0.9))["status"] == STATUS_BELOW
+
+
+def test_weekly_resample():
+    d = _series("A", [10, 11, 12, 13, 14, 15, 16])  # 2023-01-02(월) ~ 01-10(화)
+    w = weekly(d)
+    assert len(w) == 2 and w["close"].tolist() == [14, 16] and w["open"].iloc[0] == 10

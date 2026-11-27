@@ -24,6 +24,10 @@ shot 01c_live_45s 25
 shot 01d_live_90s 45
 applog logcat_live
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 01e_live_scrolled 2
+# 추세선 탭 (캐시된 실시간 데이터 사용)
+launch --es tab trend;                                   shot 07_live_trend 15
+adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 07b_live_trend_scrolled 2
+launch --es open TREND_FIRST;                            shot 08_live_trend_detail 15
 
 # 2) 데모 모드 화면들
 launch --ez demo true;                                   shot 02_demo_recommend 10

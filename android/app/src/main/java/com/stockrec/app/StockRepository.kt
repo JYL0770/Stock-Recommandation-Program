@@ -33,13 +33,13 @@ class StockRepository(context: Context) {
     private val client = NaverClient()
 
     companion object {
-        const val HISTORY_DAYS = 520          // 약 2년 (12개월 모멘텀 + 백테스트용)
+        const val HISTORY_DAYS = 800          // 약 3년 (주봉 추세선 3년 + 12개월 모멘텀 + 백테스트)
         const val CACHE_TTL_MS = 3 * 60 * 60 * 1000L
         private const val PARALLEL = 4
     }
 
     fun demo(): LoadResult =
-        LoadResult(DemoData.generate(), emptyList(), System.currentTimeMillis(), false, "가상 데모종목 80개")
+        LoadResult(DemoData.generate(nDays = 780), emptyList(), System.currentTimeMillis(), false, "가상 데모종목 80개")
 
     suspend fun live(
         s: Settings,

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -40,9 +41,11 @@ import com.stockrec.app.ui.DetailScreen
 import com.stockrec.app.ui.HelpScreen
 import com.stockrec.app.ui.RecommendScreen
 import com.stockrec.app.ui.SettingsScreen
+import com.stockrec.app.ui.TrendScreen
 
 enum class Tab(val label: String, val icon: ImageVector) {
     RECOMMEND("추천", Icons.Filled.Star),
+    TREND("추세선", Icons.Filled.Edit),
     BACKTEST("백테스트", Icons.Filled.DateRange),
     SETTINGS("설정", Icons.Filled.Settings),
     HELP("도움말", Icons.Filled.Info),
@@ -74,6 +77,13 @@ fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Bool
     var tab by rememberSaveable { mutableStateOf(startTab) }
     var openTicker by rememberSaveable { mutableStateOf(startOpen) }
 
+    // CI 스크린샷용: --es open TREND_FIRST → 매수권 첫 종목 상세
+    LaunchedEffect(state.channels) {
+        if (startOpen == "TREND_FIRST" && openTicker == "TREND_FIRST") {
+            state.channels.firstOrNull { it.status == com.stockrec.core.ChannelStatus.IN }?.let { openTicker = it.info.ticker }
+        }
+    }
+
     LaunchedEffect(state.nStocks, autoBacktest) {
         if (autoBacktest && state.nStocks > 0 && state.backtest == null && !state.backtestRunning) vm.runBacktest()
     }
@@ -100,7 +110,7 @@ fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Bool
                     }
                 },
                 actions = {
-                    if (detail == null && tab == Tab.RECOMMEND) {
+                    if (detail == null && (tab == Tab.RECOMMEND || tab == Tab.TREND)) {
                         IconButton(onClick = { vm.reload(force = true) }, enabled = !state.loading) {
                             Icon(Icons.Filled.Refresh, contentDescription = "새로고침")
                         }
@@ -131,7 +141,7 @@ fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Bool
     ) { padding ->
         if (detail != null) {
             val (scored, inPool) = remember(detail, state.settings, state.nStocks) { vm.scoredFor(detail.info.ticker) }
-            DetailScreen(detail, scored, inPool, state.settings.weights, padding)
+            DetailScreen(detail, scored, inPool, state.settings.weights, vm.channelFor(detail.info.ticker), padding)
             return@Scaffold
         }
         when (tab) {
@@ -141,6 +151,12 @@ fun App(vm: MainViewModel, startTab: Tab, startOpen: String?, autoBacktest: Bool
                 onOpen = { openTicker = it },
                 onRetry = { vm.reload(force = true) },
                 onUseDemo = { vm.updateSettings { it.copy(source = DataSource.DEMO) } },
+                contentPadding = padding,
+            )
+            Tab.TREND -> TrendScreen(
+                state,
+                onWidth = { w -> vm.updateSettings { it.copy(trendWidth = w) } },
+                onOpen = { openTicker = it },
                 contentPadding = padding,
             )
             Tab.BACKTEST -> BacktestScreen(

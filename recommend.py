@@ -28,11 +28,26 @@ def main():
     p.add_argument("--above-ma120", action="store_true", help="120일선 위 종목만")
     p.add_argument("--backtest", action="store_true")
     p.add_argument("--csv", help="추천 결과 저장 경로")
+    p.add_argument("--trend", action="store_true", help="주봉 추세선 채널 매수권 종목 목록")
+    p.add_argument("--trend-width", type=float, default=0.10, help="채널 폭 (상단선 = 지지선 × (1+폭))")
     a = p.parse_args()
 
     daily, meta = make_demo_data() if a.demo else load_collected(a.data_dir)
     if daily.empty:
         raise SystemExit(f"{a.data_dir}/daily 에 데이터가 없습니다. collect_data.py 실행 또는 --demo 사용")
+
+    if a.trend:
+        from recommender.trendline import ChannelParams, scan
+        tv = scan(daily, meta, ChannelParams(width=a.trend_width))
+        print(f"\n[주봉 추세선 매수권] {len(tv)}종목 (지지선 ~ 지지선+{a.trend_width:.0%})\n")
+        for i, r in enumerate(tv.itertuples(), 1):
+            name = getattr(r, "name", "") if isinstance(getattr(r, "name", ""), str) else ""
+            print(f"{i:>3}. {r.ticker} {name:<12} 현재 {r.close:>10,.0f} | 지지선 {r.support:>10,.0f} "
+                  f"({r.close / r.support - 1:+.1%}) | 접점 {r.touches} | 추세시작 {r.start_date:%Y-%m} "
+                  f"| 26주고점比 {r.from_recent_high:+.1%}")
+        if a.csv:
+            tv.to_csv(a.csv, index=False, encoding="utf-8-sig")
+        return
 
     feats = compute_features(daily)
     snap = attach_meta(latest_snapshot(feats), meta)

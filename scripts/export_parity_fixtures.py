@@ -71,7 +71,7 @@ def main():
     (OUT / "expected_scores.json").write_text(json.dumps(expected, ensure_ascii=False, indent=1))
 
     # 주봉 추세선 채널 (3년치 데이터 필요)
-    from recommender.trendline import STATUS_ABOVE, STATUS_BELOW, STATUS_IN, STATUS_NEAR, fit_channel, weekly
+    from recommender.trendline import fit_channel, weekly
     td, _ = make_demo_data(n_stocks=25, n_days=780, seed=5)
     td[["open", "high", "low", "close"]] = td[["open", "high", "low", "close"]].round(0)
     td["volume"] = td["volume"].round(0)
@@ -82,9 +82,10 @@ def main():
     for t, g in td.groupby("ticker"):
         ch = fit_channel(weekly(g))
         channels[t] = None if ch is None else {
-            "status": ch["status"], "upper": ch["upper"], "lower": ch["lower"], "width": ch["width"],
+            "status": ch["status"], "support": ch["support"], "upper": ch["upper"], "tolerance": ch["tolerance"],
             "touches": ch["touches"], "start_date": str(ch["start_date"].date()),
             "pivot2_date": str(ch["pivot2_date"].date()), "trend_per_year": ch["trend_per_year"],
+            "from_recent_high": ch["from_recent_high"],
         }
     (OUT / "expected_trend.json").write_text(json.dumps(channels, ensure_ascii=False, indent=1))
     print("채널", sum(v is not None for v in channels.values()), "개 /", len(channels))

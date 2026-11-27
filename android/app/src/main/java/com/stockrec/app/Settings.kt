@@ -20,6 +20,7 @@ data class Settings(
     val kospiCount: Int = 100,          // 시가총액 상위 N
     val kosdaqCount: Int = 50,
     val customTickers: List<String> = emptyList(),
+    val trendWidth: Double = 0.10,      // 추세선 채널 폭: 상단선 = 지지선 × (1 + 폭)
 ) {
     val strategy get() = STRATEGIES[strategyIndex]
     val isCustomWeights get() = weights.filterValues { it > 0 } != strategy.weights.filterValues { it > 0 }
@@ -30,7 +31,7 @@ data class Settings(
     )
 
     /** 이 값이 바뀌면 시세를 다시 받아야 함 */
-    fun universeKey() = "$source|$kospiCount|$kosdaqCount|${customTickers.sorted().joinToString(",")}"
+    fun universeKey() = "v2|$source|$kospiCount|$kosdaqCount|${customTickers.sorted().joinToString(",")}"
 }
 
 class SettingsStore(context: Context) {
@@ -53,6 +54,7 @@ class SettingsStore(context: Context) {
             kospiCount = p.getInt("kospiCount", d.kospiCount),
             kosdaqCount = p.getInt("kosdaqCount", d.kosdaqCount),
             customTickers = p.getString("customTickers", "")!!.split(',').filter { it.isNotBlank() },
+            trendWidth = Math.round(p.getFloat("trendWidth", d.trendWidth.toFloat()) * 100) / 100.0,
         )
     }
 
@@ -70,6 +72,7 @@ class SettingsStore(context: Context) {
             .putInt("kospiCount", s.kospiCount)
             .putInt("kosdaqCount", s.kosdaqCount)
             .putString("customTickers", s.customTickers.joinToString(","))
+            .putFloat("trendWidth", s.trendWidth.toFloat())
             .apply()
     }
 

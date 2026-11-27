@@ -44,6 +44,7 @@ fun DetailScreen(
     scored: Scored?,
     inPool: Boolean,
     weights: Map<Factor, Double>,
+    channel: com.stockrec.core.Channel?,
     contentPadding: PaddingValues,
 ) {
     var period by rememberSaveable { mutableIntStateOf(250) }
@@ -77,6 +78,13 @@ fun DetailScreen(
             Text("${fmtPct(change, 2)} (전일 대비)", color = signColor(change, neutral), modifier = Modifier.padding(bottom = 4.dp))
         }
         Text("${last.date} 기준", style = MaterialTheme.typography.labelSmall)
+
+        if (channel != null) {
+            SectionTitle("주봉 추세선 채널")
+            ChannelPositionBar(channel)
+            ChannelChart(channel, Modifier.padding(top = 4.dp))
+            SectionTitle("일봉 차트")
+        }
 
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
