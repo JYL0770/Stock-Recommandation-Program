@@ -39,6 +39,8 @@ data class UiState(
     /** 지수별 일봉·주봉 채널 */
     val indexes: Map<String, IndexState> = emptyMap(),
     val buyZoneComputing: Boolean = false,
+    /** 전체 종목 모드: 서버 스캔 요약 (분석 종목 수, 스캔 시각 등) */
+    val scan: com.stockrec.core.ScanSummary? = null,
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -87,7 +89,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     it.copy(
                         loading = false, asOf = feats.maxOfOrNull { f -> f.bars.last().date }, nStocks = feats.size,
                         failed = res.failed, fetchedAt = res.fetchedAt, fromCache = res.fromCache,
-                        universeNote = res.universeNote, loadedRegion = s.region,
+                        universeNote = res.universeNote, loadedRegion = s.region, scan = res.scan,
                     )
                 }
                 recomputeBuyZone()
@@ -124,7 +126,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         store.save(new)
         _state.update { it.copy(settings = new) }
         when {
-            new.region != old.region || new.source != old.source -> reload(force = false)
+            new.region != old.region || new.source != old.source || new.scope != old.scope -> reload(force = false)
             new.trendWidth != old.trendWidth -> recomputeBuyZone()
         }
     }

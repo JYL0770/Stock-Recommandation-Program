@@ -9,9 +9,15 @@ enum class Region(val label: String, val source: String) {
     US("해외 (미국·핑크시트)", "Yahoo Finance"),
 }
 
+enum class Scope(val label: String, val desc: String) {
+    ALL("전체 종목", "매일 장 마감 후 서버가 시장 전체를 스캔한 결과를 받아, 후보 종목만 최신 시세로 다시 확인"),
+    CUSTOM("직접 선택", "아래 범위의 종목을 휴대폰에서 직접 받아 분석"),
+}
+
 data class Settings(
     val source: DataSource = DataSource.LIVE,
     val region: Region = Region.KR,
+    val scope: Scope = Scope.ALL,
     // 국내 종목 범위
     val kospiCount: Int = 100,          // 시가총액 상위 N
     val kosdaqCount: Int = 50,
@@ -24,8 +30,8 @@ data class Settings(
 ) {
     /** 이 값이 바뀌면 시세를 다시 받아야 함 (지역별로 따로 캐시) */
     fun universeKey(r: Region = region) = when (r) {
-        Region.KR -> "v4|KR|$source|$kospiCount|$kosdaqCount|${customTickers.sorted().joinToString(",")}"
-        Region.US -> "v4|US|$source|$usLarge|$usOtc|${usCustom.sorted().joinToString(",")}"
+        Region.KR -> "v5|KR|$source|$scope|$kospiCount|$kosdaqCount|${customTickers.sorted().joinToString(",")}"
+        Region.US -> "v5|US|$source|$scope|$usLarge|$usOtc|${usCustom.sorted().joinToString(",")}"
     }
 }
 
@@ -38,6 +44,7 @@ class SettingsStore(context: Context) {
         return Settings(
             source = runCatching { DataSource.valueOf(p.getString("source", d.source.name)!!) }.getOrDefault(d.source),
             region = runCatching { Region.valueOf(p.getString("region", d.region.name)!!) }.getOrDefault(d.region),
+            scope = runCatching { Scope.valueOf(p.getString("scope", d.scope.name)!!) }.getOrDefault(d.scope),
             kospiCount = p.getInt("kospiCount", d.kospiCount),
             kosdaqCount = p.getInt("kosdaqCount", d.kosdaqCount),
             customTickers = list("customTickers"),
@@ -52,6 +59,7 @@ class SettingsStore(context: Context) {
         p.edit()
             .putString("source", s.source.name)
             .putString("region", s.region.name)
+            .putString("scope", s.scope.name)
             .putInt("kospiCount", s.kospiCount)
             .putInt("kosdaqCount", s.kosdaqCount)
             .putString("customTickers", s.customTickers.joinToString(","))

@@ -5,6 +5,7 @@ import com.stockrec.core.Bar
 import com.stockrec.core.BuyZone
 import com.stockrec.core.DemoData
 import com.stockrec.core.NaverClient
+import com.stockrec.core.ScanSummary
 import com.stockrec.core.StockInfo
 import com.stockrec.core.StockSeries
 import com.stockrec.core.Universe
@@ -26,6 +27,8 @@ data class LoadResult(
     val fetchedAt: Long,
     val fromCache: Boolean,
     val universeNote: String,
+    /** 전체 종목 모드: 서버 스캔 요약 */
+    val scan: ScanSummary? = null,
 )
 
 /** 시세 데이터 로드 + 휴대폰 내부 저장소 캐시 (국내/해외 따로) */
@@ -40,6 +43,8 @@ class StockRepository(context: Context) {
         const val CACHE_TTL_MS = 3 * 60 * 60 * 1000L
         private const val PARALLEL = 4
         const val INDEX_MARKET = "INDEX"
+        /** 서버(GitHub Actions)가 매일 올리는 전체 시장 스캔 결과 */
+        private const val SCAN_URL = "https://github.com/JYL0770/Stock-Recommandation-Program/releases/download/scan-latest/scan_%s.json"
 
         fun indexesOf(r: Region) = if (r == Region.KR) BuyZone.KR_INDEXES else BuyZone.US_INDEXES
 
@@ -79,7 +84,21 @@ class StockRepository(context: Context) {
         if (!force) readCache(r, key)?.let { return@withContext it }
 
         progress(0, 1, "종목 목록 받는 중...")
-        val (universe, note) = if (r == Region.KR) resolveKr(s) else resolveUs(s)
+        var scan: ScanSummary? = null
+        val (universe, note) = if (s.scope == Scope.ALL) {
+            progress(0, 1, "전체 시장 스캔 결과 받는 중...")
+            scan = runCatching { downloadScan(r) }.getOrNull()
+            if (scan != null) {
+                val extra = if (r == Region.KR) s.customTickers.filter { it.length == 6 }.map { StockInfo(it, it, "직접추가") }
+                    else s.usCustom.map(::cleanUsSymbol).filter { it.isNotEmpty() }.map { StockInfo(it, it, "US") }
+                val cands = scan.candidates.map { StockInfo(it.ticker, it.name, it.market) }
+                (cands + extra).distinctBy { it.ticker } to
+                    "전체 ${"%,d".format(scan.analyzed)}종목 스캔 → 후보 ${cands.size}" + if (extra.isNotEmpty()) " + 직접추가 ${extra.size}" else ""
+            } else {
+                val (u, n) = if (r == Region.KR) resolveKr(s) else resolveUs(s)
+                u to "전체 스캔 결과를 받지 못해 기본 범위로 분석: $n"
+            }
+        } else if (r == Region.KR) resolveKr(s) else resolveUs(s)
         val total = universe.size
         val done = AtomicInteger(0)
         val sem = Semaphore(PARALLEL)
@@ -110,14 +129,26 @@ class StockRepository(context: Context) {
                 .onFailure { failed += code }
                 .getOrNull()?.let { StockSeries(StockInfo(code, name, INDEX_MARKET), it.bars) }
         }
-        if (ok.isEmpty()) {
+        if (ok.isEmpty() && universe.isNotEmpty()) {
             // 네트워크 실패 시 오래된 캐시라도 사용
             readCache(r, key, ignoreTtl = true)?.let { return@withContext it.copy(universeNote = "오프라인: 이전 데이터 사용") }
             throw IllegalStateException("시세를 받지 못했습니다. 인터넷 연결을 확인하세요.\n(${results.firstOrNull()?.second?.exceptionOrNull()?.message})")
         }
         val now = System.currentTimeMillis()
-        writeCache(r, key, ok + indexes, now, note)
-        LoadResult(ok + indexes, failed, now, false, note)
+        writeCache(r, key, ok + indexes, now, note, scan)
+        LoadResult(ok + indexes, failed, now, false, note, scan)
+    }
+
+    private fun downloadScan(r: Region): ScanSummary {
+        val conn = java.net.URL(SCAN_URL.format(r.name.lowercase())).openConnection() as java.net.HttpURLConnection
+        try {
+            conn.connectTimeout = 15_000; conn.readTimeout = 30_000
+            conn.instanceFollowRedirects = true
+            if (conn.responseCode != 200) throw java.io.IOException("HTTP ${conn.responseCode}")
+            return ScanSummary.fromJson(conn.inputStream.use { String(it.readBytes(), Charsets.UTF_8) })
+        } finally {
+            conn.disconnect()
+        }
     }
 
     private fun resolveKr(s: Settings): Pair<List<StockInfo>, String> {
@@ -175,10 +206,11 @@ class StockRepository(context: Context) {
             }
             StockSeries(StockInfo(head[0], head.getOrElse(1) { head[0] }, head.getOrElse(2) { "" }), bars)
         }
-        if (series.isEmpty()) null else LoadResult(series, emptyList(), fetchedAt, true, note)
+        val scan = File(dir, "_scan.json").takeIf { it.exists() }?.let { runCatching { ScanSummary.fromJson(it.readText()) }.getOrNull() }
+        if (series.isEmpty()) null else LoadResult(series, emptyList(), fetchedAt, true, note, scan)
     }.getOrNull()
 
-    private fun writeCache(r: Region, key: String, series: List<StockSeries>, at: Long, note: String) {
+    private fun writeCache(r: Region, key: String, series: List<StockSeries>, at: Long, note: String, scan: ScanSummary?) {
         val dir = dir(r)
         dir.listFiles()?.forEach { it.delete() }
         for (s in series) {
@@ -187,6 +219,7 @@ class StockRepository(context: Context) {
                 for (b in s.bars) w.write("${b.date},${b.open},${b.high},${b.low},${b.close},${b.volume}\n")
             }
         }
+        scan?.let { File(dir, "_scan.json").writeText(it.toJson()) }
         File(dir, "_meta.txt").writeText("$key\n$at\n$note\n")
     }
 }

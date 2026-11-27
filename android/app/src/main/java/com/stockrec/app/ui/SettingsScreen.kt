@@ -34,6 +34,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.stockrec.app.DataSource
 import com.stockrec.app.Region
+import com.stockrec.app.Scope
 import com.stockrec.app.Settings
 import com.stockrec.app.StockRepository
 import com.stockrec.core.Universe
@@ -76,7 +77,31 @@ fun SettingsScreen(
             SectionTitle(if (s.region == Region.KR) "국내 종목 범위" else "해외 종목 범위")
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(12.dp)) {
-                    if (s.region == Region.KR) {
+                    for (sc in Scope.entries) {
+                        RadioRow(sc.label, s.scope == sc) { onChange { it.copy(scope = sc) } }
+                        Text(sc.desc, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 48.dp))
+                    }
+                    if (s.scope == Scope.ALL) {
+                        Text(
+                            if (s.region == Region.KR) "대상: 코스피·코스닥 전 종목 (ETF·우선주·스팩 제외, 약 2,600개)"
+                            else "대상: NYSE·NASDAQ·AMEX 전 종목 + OTC·핑크시트 (ETF·워런트·우선주 제외)",
+                            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                    if (s.scope == Scope.ALL && s.region == Region.KR) {
+                        CustomField(
+                            initial = s.customTickers.joinToString(", "),
+                            label = "추가로 확인할 종목코드 (쉼표 구분)", placeholder = "예: 005930, 000660",
+                            parse = { t -> t.split(',', ' ', '\n').map { it.trim() }.filter { it.length == 6 }.distinct() },
+                        ) { list -> onChange { it.copy(customTickers = list) } }
+                    } else if (s.scope == Scope.ALL) {
+                        CustomField(
+                            initial = s.usCustom.joinToString(", "),
+                            label = "추가로 확인할 심볼 (Yahoo 기준, 쉼표 구분)", placeholder = "예: NSRGY, BRK-B",
+                            parse = { t -> t.split(',', ' ', '\n').map(StockRepository::cleanUsSymbol).filter { it.isNotEmpty() }.distinct() },
+                        ) { list -> onChange { it.copy(usCustom = list) } }
+                    } else if (s.region == Region.KR) {
                         IntSlider("코스피 시가총액 상위", s.kospiCount, 0..300, 10, "개") { v -> onChange { it.copy(kospiCount = v) } }
                         IntSlider("코스닥 시가총액 상위", s.kosdaqCount, 0..300, 10, "개") { v -> onChange { it.copy(kosdaqCount = v) } }
                         CustomField(

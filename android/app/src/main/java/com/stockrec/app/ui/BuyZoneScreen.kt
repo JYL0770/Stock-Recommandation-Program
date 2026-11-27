@@ -176,7 +176,7 @@ private fun LoadStatus(state: UiState, onRetry: () -> Unit, onUseDemo: () -> Uni
                 else -> {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         LabeledValue("기준일", state.asOf?.toString() ?: "-")
-                        LabeledValue("분석 종목", "${state.nStocks}")
+                        LabeledValue("분석 종목", state.scan?.let { "%,d".format(it.analyzed) } ?: "${state.nStocks}")
                         LabeledValue("매수권", if (state.buyZoneComputing) "계산 중" else "${state.buyZone.count { it.buy }}")
                     }
                     val src = if (state.settings.source == DataSource.DEMO) "데모(가상) 데이터" else "${state.settings.region.source} 시세"
@@ -184,6 +184,16 @@ private fun LoadStatus(state: UiState, onRetry: () -> Unit, onUseDemo: () -> Uni
                     Text("$src · ${state.universeNote} · $time 수신${if (state.fromCache) "(캐시)" else ""}" +
                         if (state.failed.isNotEmpty()) " · 실패 ${state.failed.size}" else "",
                         style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 6.dp))
+                    state.scan?.let { sc ->
+                        val c = sc.counts
+                        val at = runCatching {
+                            java.time.Instant.parse(sc.generatedAt).atZone(java.time.ZoneId.systemDefault())
+                                .format(java.time.format.DateTimeFormatter.ofPattern("MM/dd HH:mm"))
+                        }.getOrDefault(sc.generatedAt)
+                        Text("서버 전체 스캔 $at (${sc.asOf} 종가) · 종목 일봉 ${c["stock_daily"] ?: 0} · 주봉 ${c["stock_weekly"] ?: 0} · " +
+                            "둘 다 ${c["stock_both"] ?: 0} → 최신 시세로 재확인",
+                            style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 2.dp))
+                    }
                 }
             }
         }
