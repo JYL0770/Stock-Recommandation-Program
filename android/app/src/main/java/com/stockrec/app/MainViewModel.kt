@@ -4,9 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.stockrec.core.Backtest
-import com.stockrec.core.Channel
-import com.stockrec.core.ChannelParams
-import com.stockrec.core.TrendChannel
+import com.stockrec.core.BuyZone
+import com.stockrec.core.BuyZoneResult
+import com.stockrec.core.IndexState
+import com.stockrec.core.StockSeries
 import com.stockrec.core.BacktestResult
 import com.stockrec.core.FeatureSeries
 import com.stockrec.core.Indicators
@@ -43,8 +44,11 @@ data class UiState(
     val backtestRunning: Boolean = false,
     val backtestTopN: Int = 10,
     val backtestHold: Int = 20,
-    /** 주봉 추세선 채널 (모든 상태) */
-    val channels: List<Channel> = emptyList(),
+    /** 종목별 4개 차트 매수권 판정 (정렬됨) */
+    val buyZone: List<BuyZoneResult> = emptyList(),
+    /** 지수별 일봉·주봉 채널 */
+    val indexes: Map<String, IndexState> = emptyMap(),
+    val buyZoneComputing: Boolean = false,
 )
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -77,8 +81,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _state.update { it.copy(progress = done.toFloat() / total, progressText = "$msg ($done/$total)") }
                 }
                 _state.update { it.copy(progressText = "지표 계산 중...") }
+                val (indexSeries, stockSeries) = res.series.partition { it.info.market == StockRepository.INDEX_MARKET }
+                indexData = indexSeries
                 val feats = withContext(Dispatchers.Default) {
-                    res.series.filter { it.bars.size >= 30 }.map(Indicators::compute)
+                    stockSeries.filter { it.bars.size >= 30 }.map(Indicators::compute)
                 }
                 features = feats.associateBy { it.info.ticker }
                 snaps = feats.map { it.latest() }
@@ -91,7 +97,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     )
                 }
                 rescore()
-                recomputeChannels()
+                recomputeBuyZone()
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -115,22 +121,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    private var channelJob: Job? = null
+    private var indexData: List<StockSeries> = emptyList()
+    private var buyZoneJob: Job? = null
 
-    private fun recomputeChannels() {
-        channelJob?.cancel()
+    /** 종목 일봉·주봉 + 지수 일봉·주봉 4개 차트 판정 */
+    private fun recomputeBuyZone() {
+        buyZoneJob?.cancel()
         val width = _state.value.settings.trendWidth
-        val feats = features.values.toList()
-        channelJob = viewModelScope.launch {
-            val chs = withContext(Dispatchers.Default) {
-                val p = ChannelParams(width = width)
-                TrendChannel.sort(feats.mapNotNull { TrendChannel.fit(it.info, TrendChannel.weekly(it.bars), p) })
+        val stocks = features.values.map { StockSeries(it.info, it.bars) }
+        val idxSeries = indexData
+        _state.update { it.copy(buyZoneComputing = true) }
+        buyZoneJob = viewModelScope.launch {
+            val (idx, results) = withContext(Dispatchers.Default) {
+                val idx = idxSeries.associate { it.info.ticker to BuyZone.index(it.info.ticker, it, width) }
+                idx to BuyZone.sort(stocks.map { BuyZone.evaluate(it, idx[BuyZone.indexFor(it.info.market)], width) })
             }
-            _state.update { it.copy(channels = chs) }
+            _state.update { it.copy(buyZone = results, indexes = idx, buyZoneComputing = false) }
         }
     }
 
-    fun channelFor(ticker: String): Channel? = _state.value.channels.firstOrNull { it.info.ticker == ticker }
+    fun buyZoneFor(ticker: String): BuyZoneResult? = _state.value.buyZone.firstOrNull { it.info.ticker == ticker }
 
     /** 상세 화면용: 이 종목의 팩터 점수 (필터 통과 못 하면 전체 기준) */
     fun scoredFor(ticker: String): Pair<Scored?, Boolean> {
@@ -149,7 +159,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _state.update { it.copy(settings = new, backtest = if (new.weights != old.weights || new.filters() != old.filters()) null else it.backtest) }
         if (new.universeKey() != loadedKey && (new.source != old.source)) reload(force = false) else {
             rescore()
-            if (new.trendWidth != old.trendWidth) recomputeChannels()
+            if (new.trendWidth != old.trendWidth) recomputeBuyZone()
         }
     }
 

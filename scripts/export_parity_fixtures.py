@@ -70,25 +70,40 @@ def main():
         }
     (OUT / "expected_scores.json").write_text(json.dumps(expected, ensure_ascii=False, indent=1))
 
-    # 주봉 추세선 채널 (3년치 데이터 필요)
-    from recommender.trendline import fit_channel, weekly
-    td, _ = make_demo_data(n_stocks=25, n_days=780, seed=5)
+    # 추세선 채널: 종목 일봉·주봉 + 데모 지수 일봉·주봉 (3년치 데이터 필요)
+    from recommender.trendline import DAILY, WEEKLY, evaluate, fit_channel, make_index, weekly, channels_of
+    td, tmeta = make_demo_data(n_stocks=25, n_days=780, seed=5)
     td[["open", "high", "low", "close"]] = td[["open", "high", "low", "close"]].round(0)
     td["volume"] = td["volume"].round(0)
     td["date"] = td["date"].dt.strftime("%Y-%m-%d")
     td[["ticker", "date", "open", "high", "low", "close", "volume"]].to_csv(OUT / "trend_daily.csv", index=False)
+    tmeta[["ticker", "market"]].to_csv(OUT / "trend_meta.csv", index=False)
     td = pd.read_csv(OUT / "trend_daily.csv", dtype={"ticker": str}, parse_dates=["date"])
-    channels = {}
-    for t, g in td.groupby("ticker"):
-        ch = fit_channel(weekly(g))
-        channels[t] = None if ch is None else {
-            "status": ch["status"], "support": ch["support"], "upper": ch["upper"], "tolerance": ch["tolerance"],
-            "touches": ch["touches"], "start_date": str(ch["start_date"].date()),
-            "pivot2_date": str(ch["pivot2_date"].date()), "trend_per_year": ch["trend_per_year"],
-            "from_recent_high": ch["from_recent_high"],
+    tmeta = pd.read_csv(OUT / "trend_meta.csv", dtype={"ticker": str})
+
+    def ch_json(ch):
+        return None if ch is None else {
+            "status": ch["status"], "support": ch["support"], "upper": ch["upper"], "touches": ch["touches"],
+            "start_date": str(ch["start_date"].date()), "pivot2_date": str(ch["pivot2_date"].date()),
+            "trend_per_year": ch["trend_per_year"], "from_recent_high": ch["from_recent_high"],
         }
-    (OUT / "expected_trend.json").write_text(json.dumps(channels, ensure_ascii=False, indent=1))
-    print("채널", sum(v is not None for v in channels.values()), "개 /", len(channels))
+
+    markets = tmeta.set_index("ticker")["market"].to_dict()
+    idx_daily = {m: make_index(td, [t for t, mm in markets.items() if mm == m]) for m in ("KOSPI", "KOSDAQ")}
+    idx_ch = {m: channels_of(df) for m, df in idx_daily.items()}
+    out = {"index": {m: {"last_close": float(df["close"].iloc[-1]), "n": len(df),
+                         "daily": ch_json(idx_ch[m][0]), "weekly": ch_json(idx_ch[m][1])}
+                     for m, df in idx_daily.items()},
+           "stocks": {}}
+    for t, g in td.groupby("ticker"):
+        ev = evaluate(g, idx_ch[markets[t]])
+        out["stocks"][t] = {"weekly": ch_json(ev["channels"]["stock_weekly"]),
+                            "daily": ch_json(ev["channels"]["stock_daily"]),
+                            "n_ok": ev["n_ok"], "buy": ev["buy"]}
+    (OUT / "expected_trend.json").write_text(json.dumps(out, ensure_ascii=False, indent=1))
+    print("주봉 채널", sum(v["weekly"] is not None for v in out["stocks"].values()), "일봉 채널",
+          sum(v["daily"] is not None for v in out["stocks"].values()), "/", len(out["stocks"]),
+          "지수:", {m: (v["daily"] and v["daily"]["status"], v["weekly"] and v["weekly"]["status"]) for m, v in out["index"].items()})
     print("픽스처 저장:", OUT)
 
 

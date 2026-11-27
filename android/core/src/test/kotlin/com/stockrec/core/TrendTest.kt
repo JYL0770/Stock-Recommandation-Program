@@ -71,32 +71,57 @@ class TrendTest {
         assertNull(TrendChannel.fit(StockInfo("Y"), weeks))
     }
 
+    private fun checkChannel(what: String, ch: Channel?, e: kotlinx.serialization.json.JsonElement) {
+        if (e is JsonNull) { assertNull(ch, what); return }
+        val o = e.jsonObject
+        assertNotNull(ch, what)
+        assertEquals(o.getValue("status").jsonPrimitive.content, ch.status.label, what)
+        assertEquals(o.getValue("touches").jsonPrimitive.int, ch.touches, what)
+        assertEquals(o.getValue("start_date").jsonPrimitive.content, ch.startDate.toString(), what)
+        assertEquals(o.getValue("pivot2_date").jsonPrimitive.content, ch.pivot2Date.toString(), what)
+        for ((k, v) in listOf("support" to ch.support, "upper" to ch.upper, "trend_per_year" to ch.trendPerYear,
+                "from_recent_high" to ch.fromRecentHigh)) {
+            val ev = o.getValue(k).jsonPrimitive.double
+            assertTrue(abs(v - ev) <= 1e-8 * maxOf(1.0, abs(ev)), "$what $k kotlin=$v python=$ev")
+        }
+    }
+
     @Test
     fun matchesPython() {
         val rows = res("trend_daily.csv").trim().lines().drop(1).map { it.split(',') }
-        val series = rows.groupBy { it[0] }.mapValues { (_, r) ->
-            r.map { Bar(LocalDate.parse(it[1]), it[2].toDouble(), it[3].toDouble(), it[4].toDouble(), it[5].toDouble(), it[6].toDouble()) }
+        val markets = res("trend_meta.csv").trim().lines().drop(1).map { it.split(',') }.associate { it[0] to it[1] }
+        val series = rows.groupBy { it[0] }.map { (t, r) ->
+            StockSeries(StockInfo(t, t, markets.getValue(t)),
+                r.map { Bar(LocalDate.parse(it[1]), it[2].toDouble(), it[3].toDouble(), it[4].toDouble(), it[5].toDouble(), it[6].toDouble()) })
         }
         val exp = Json.parseToJsonElement(res("expected_trend.json")).jsonObject
-        assertEquals(exp.keys, series.keys)
-        var found = 0
-        for ((t, e) in exp) {
-            val ch = TrendChannel.fit(StockInfo(t), TrendChannel.weekly(series.getValue(t)))
-            if (e is JsonNull) { assertNull(ch, t); continue }
-            val o = e.jsonObject
-            assertNotNull(ch, t)
-            found++
-            assertEquals(o.getValue("status").jsonPrimitive.content, ch.status.label, t)
-            assertEquals(o.getValue("touches").jsonPrimitive.int, ch.touches, t)
-            assertEquals(o.getValue("start_date").jsonPrimitive.content, ch.startDate.toString(), t)
-            assertEquals(o.getValue("pivot2_date").jsonPrimitive.content, ch.pivot2Date.toString(), t)
-            for ((k, v) in listOf("support" to ch.support, "upper" to ch.upper, "tolerance" to ch.tolerance,
-                    "trend_per_year" to ch.trendPerYear, "from_recent_high" to ch.fromRecentHigh)) {
-                val ev = o.getValue(k).jsonPrimitive.double
-                assertTrue(abs(v - ev) <= 1e-9 * maxOf(1.0, abs(ev)), "$t $k kotlin=$v python=$ev")
-            }
+
+        val idx = listOf("KOSPI", "KOSDAQ").associateWith { m ->
+            BuyZone.index(m, BuyZone.makeIndex(m, series.filter { it.info.market == m }))
         }
-        assertTrue(found >= 3, "채널 $found 개")
+        for ((m, st) in idx) {
+            val e = exp.getValue("index").jsonObject.getValue(m).jsonObject
+            assertEquals(e.getValue("n").jsonPrimitive.int, st.series.bars.size)
+            val lc = e.getValue("last_close").jsonPrimitive.double
+            assertTrue(abs(st.series.bars.last().close - lc) < 1e-8 * lc, "$m 지수 종가")
+            checkChannel("$m 지수 일봉", st.daily, e.getValue("daily"))
+            checkChannel("$m 지수 주봉", st.weekly, e.getValue("weekly"))
+        }
+
+        val stocks = exp.getValue("stocks").jsonObject
+        assertEquals(stocks.keys, series.map { it.info.ticker }.toSet())
+        var daily = 0; var weekly = 0
+        for (s in series) {
+            val e = stocks.getValue(s.info.ticker).jsonObject
+            val r = BuyZone.evaluate(s, idx.getValue(BuyZone.indexFor(s.info.market)))
+            checkChannel("${s.info.ticker} 주봉", r.channels[Check.STOCK_WEEKLY], e.getValue("weekly"))
+            checkChannel("${s.info.ticker} 일봉", r.channels[Check.STOCK_DAILY], e.getValue("daily"))
+            assertEquals(e.getValue("n_ok").jsonPrimitive.int, r.nOk, s.info.ticker)
+            assertEquals(e.getValue("buy").jsonPrimitive.content.toBoolean(), r.buy, s.info.ticker)
+            if (r.channels[Check.STOCK_DAILY] != null) daily++
+            if (r.channels[Check.STOCK_WEEKLY] != null) weekly++
+        }
+        assertTrue(daily >= 5 && weekly >= 5, "일봉 $daily 주봉 $weekly")
     }
 
     /** 실제 시장 스캔 (CI 에서 NETWORK_TESTS=1). 결과를 TREND| 로 출력 */
@@ -117,26 +142,17 @@ class TrendTest {
         pool.shutdown(); pool.awaitTermination(1, TimeUnit.MINUTES)
         println("TREND|INFO|종목 ${universe.size}개 중 수신 ${series.size}개, 기준일 ${series.maxOf { it.bars.last().date }}")
 
-        val all = TrendChannel.scan(series, statuses = ChannelStatus.entries.toSet())
-        println("TREND|INFO|채널 ${all.size}개: " + all.groupingBy { it.status.label }.eachCount())
-        for (c in all.filter { it.status == ChannelStatus.IN }) {
-            println(listOf("TREND", "ROW", c.status.label, c.info.ticker, c.info.name, c.info.market, c.close.toLong(),
-                c.support.toLong(), c.upper.toLong(), "%.2f".format(c.position), c.touches,
-                c.startDate, "%.3f".format(c.trendPerYear), "%.3f".format(c.fromRecentHigh)).joinToString("|"))
+        val idx = listOf("KOSPI", "KOSDAQ").associateWith { m -> BuyZone.index(m, client.fetchDaily(m, 800)) }
+        for ((m, st) in idx) for ((lab, c) in listOf("일봉" to st.daily, "주봉" to st.weekly)) {
+            println("TREND|INDEX|$m|$lab|" + (c?.let { "${it.status.label}|종가=${it.close}|지지=${"%.2f".format(it.support)}|상단=${"%.2f".format(it.upper)}|접점=${it.touches}" } ?: "추세선 없음"))
         }
-        series.firstOrNull { it.info.ticker == "000660" }?.let { s ->
-            val c = TrendChannel.fit(s.info, TrendChannel.weekly(s.bars))
-            println("TREND|HYNIX|" + (c?.let { "${it.status.label}|close=${it.close}|support=${it.support.toLong()}|upper=${it.upper.toLong()}|touches=${it.touches}|start=${it.startDate}" } ?: "채널 없음"))
-        }
-        // 알고리즘 튜닝용: 일봉 덤프 (DAILY|ticker|name|market|date,o,h,l,c;...) — 지수 포함
-        val indexes = listOf("KOSPI", "KOSDAQ").mapNotNull { m ->
-            runCatching { client.fetchDaily(m, 800) }.onFailure { println("TREND|INDEX|$m 실패 $it") }.getOrNull()
-                ?.let { StockSeries(StockInfo(m, m, "INDEX"), it.bars) }
-        }
-        for (s in indexes) println("TREND|INDEX|${s.info.ticker} ${s.bars.size}봉 마지막 ${s.bars.last()}")
-        for (s in indexes + series) {
-            println("DAILY|${s.info.ticker}|${s.info.name}|${s.info.market}|" +
-                s.bars.takeLast(800).joinToString(";") { "${it.date},${fmtN(it.open)},${fmtN(it.high)},${fmtN(it.low)},${fmtN(it.close)}" })
+        val results = BuyZone.sort(series.map { BuyZone.evaluate(it, idx.getValue(BuyZone.indexFor(it.info.market))) })
+        println("TREND|INFO|매수권(4/4) ${results.count { it.buy }}개, 종목 일봉+주봉 충족 ${results.count { it.stockOk }}개, " +
+            "종목 일봉 ${results.count { it.ok(Check.STOCK_DAILY) }}개, 종목 주봉 ${results.count { it.ok(Check.STOCK_WEEKLY) }}개")
+        for (r in results.filter { it.stockOk || it.buy }) {
+            val d = r.channels[Check.STOCK_DAILY]!!; val w = r.channels[Check.STOCK_WEEKLY]!!
+            println(listOf("TREND", "ROW", if (r.buy) "매수권" else "지수미충족", r.info.ticker, r.info.name, r.info.market,
+                r.close.toLong(), d.support.toLong(), d.upper.toLong(), w.support.toLong(), w.upper.toLong(), r.nOk).joinToString("|"))
         }
         assertTrue(series.size > 100)
     }

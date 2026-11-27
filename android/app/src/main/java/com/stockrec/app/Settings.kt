@@ -31,7 +31,7 @@ data class Settings(
     )
 
     /** 이 값이 바뀌면 시세를 다시 받아야 함 */
-    fun universeKey() = "v2|$source|$kospiCount|$kosdaqCount|${customTickers.sorted().joinToString(",")}"
+    fun universeKey() = "v3|$source|$kospiCount|$kosdaqCount|${customTickers.sorted().joinToString(",")}"
 }
 
 class SettingsStore(context: Context) {

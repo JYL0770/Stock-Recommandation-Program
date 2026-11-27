@@ -2,6 +2,7 @@ package com.stockrec.app
 
 import android.content.Context
 import com.stockrec.core.Bar
+import com.stockrec.core.BuyZone
 import com.stockrec.core.DemoData
 import com.stockrec.core.NaverClient
 import com.stockrec.core.StockInfo
@@ -36,10 +37,18 @@ class StockRepository(context: Context) {
         const val HISTORY_DAYS = 800          // 약 3년 (주봉 추세선 3년 + 12개월 모멘텀 + 백테스트)
         const val CACHE_TTL_MS = 3 * 60 * 60 * 1000L
         private const val PARALLEL = 4
+        const val INDEX_MARKET = "INDEX"
+        val INDEXES = listOf("KOSPI" to "코스피", "KOSDAQ" to "코스닥")
     }
 
-    fun demo(): LoadResult =
-        LoadResult(DemoData.generate(nDays = 780), emptyList(), System.currentTimeMillis(), false, "가상 데모종목 80개")
+    fun demo(): LoadResult {
+        val stocks = DemoData.generate(nDays = 780)
+        // 데모 지수: 시장별 종목 동일가중 평균
+        val idx = INDEXES.map { (code, name) ->
+            BuyZone.makeIndex(code, stocks.filter { it.info.market == code }).let { it.copy(info = StockInfo(code, name, INDEX_MARKET)) }
+        }
+        return LoadResult(stocks + idx, emptyList(), System.currentTimeMillis(), false, "가상 데모종목 80개 + 데모 지수")
+    }
 
     suspend fun live(
         s: Settings,
@@ -69,15 +78,22 @@ class StockRepository(context: Context) {
         val ok = results.mapNotNull { (info, r) ->
             r.getOrNull()?.let { StockSeries(info.copy(name = it.info.name.takeIf { n -> n != info.ticker } ?: info.name), it.bars) }
         }
-        val failed = results.filter { it.second.isFailure }.map { it.first.ticker }
+        val failed = results.filter { it.second.isFailure }.map { it.first.ticker }.toMutableList()
+        // 지수 (코스피·코스닥) 일봉
+        progress(total, total, "지수 받는 중")
+        val indexes = INDEXES.mapNotNull { (code, name) ->
+            runCatching { client.fetchDaily(code, HISTORY_DAYS) }
+                .onFailure { failed += code }
+                .getOrNull()?.let { StockSeries(StockInfo(code, name, INDEX_MARKET), it.bars) }
+        }
         if (ok.isEmpty()) {
             // 네트워크 실패 시 오래된 캐시라도 사용
             readCache(key, ignoreTtl = true)?.let { return@withContext it.copy(universeNote = "오프라인: 이전 데이터 사용") }
             throw IllegalStateException("시세를 받지 못했습니다. 인터넷 연결을 확인하세요.\n(${results.firstOrNull()?.second?.exceptionOrNull()?.message})")
         }
         val now = System.currentTimeMillis()
-        writeCache(key, ok, now, note)
-        LoadResult(ok, failed, now, false, note)
+        writeCache(key, ok + indexes, now, note)
+        LoadResult(ok + indexes, failed, now, false, note)
     }
 
     private fun resolveUniverse(s: Settings): Pair<List<StockInfo>, String> {

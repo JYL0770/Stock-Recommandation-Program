@@ -116,3 +116,11 @@ def test_weekly_resample():
     d = _series("A", [10, 11, 12, 13, 14, 15, 16])  # 2023-01-02(월) ~ 01-10(화)
     w = weekly(d)
     assert len(w) == 2 and w["close"].tolist() == [14, 16] and w["open"].iloc[0] == 10
+
+
+def test_buy_zone_requires_all_four():
+    from recommender.trendline import evaluate
+    good = _weekly_channel(lambda line: line * 1.04)
+    ev = evaluate(_series("A", [1.0] * 10), (None, None))  # 데이터 부족 → 모두 미충족
+    assert not ev["buy"] and ev["n_ok"] == 0
+    assert fit_channel(good)["status"] == STATUS_IN

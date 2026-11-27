@@ -37,14 +37,19 @@ def main():
         raise SystemExit(f"{a.data_dir}/daily 에 데이터가 없습니다. collect_data.py 실행 또는 --demo 사용")
 
     if a.trend:
-        from recommender.trendline import ChannelParams, scan
-        tv = scan(daily, meta, ChannelParams(width=a.trend_width))
-        print(f"\n[주봉 추세선 매수권] {len(tv)}종목 (지지선 ~ 지지선+{a.trend_width:.0%})\n")
-        for i, r in enumerate(tv.itertuples(), 1):
-            name = getattr(r, "name", "") if isinstance(getattr(r, "name", ""), str) else ""
-            print(f"{i:>3}. {r.ticker} {name:<12} 현재 {r.close:>10,.0f} | 지지선 {r.support:>10,.0f} "
-                  f"({r.close / r.support - 1:+.1%}) | 접점 {r.touches} | 추세시작 {r.start_date:%Y-%m} "
-                  f"| 26주고점比 {r.from_recent_high:+.1%}")
+        from recommender.trendline import CHECK_LABELS, CHECKS, STATUS_IN, load_index_daily, scan
+        idx_daily = load_index_daily(daily, meta, None if a.demo else a.data_dir)
+        tv, idx = scan(daily, meta, idx_daily, width=a.trend_width, only_buy=False)
+        print("\n[지수]")
+        for m, (d, w) in idx.items():
+            print(f"  {m}: 일봉 {d['status'] if d else '추세선 없음'} / 주봉 {w['status'] if w else '추세선 없음'}")
+        buy = tv[tv["buy"]] if not tv.empty else tv
+        print(f"\n[매수권] 종목 일봉·주봉 + 지수 일봉·주봉 4개 모두 충족: {len(buy)}종목")
+        for i, r in enumerate(buy.itertuples(), 1):
+            print(f"{i:>3}. {r.ticker} {r.name:<12} 현재 {r.close:>10,.0f} | 일봉 지지 {r.d_support:>10,.0f} | 주봉 지지 {r.w_support:>10,.0f}")
+        part = tv[(~tv["buy"]) & tv["ok_stock_daily"] & tv["ok_stock_weekly"]] if not tv.empty else tv
+        if len(part):
+            print(f"\n(참고) 종목 조건은 충족, 지수 조건 미충족: {', '.join(part['name'])}")
         if a.csv:
             tv.to_csv(a.csv, index=False, encoding="utf-8-sig")
         return

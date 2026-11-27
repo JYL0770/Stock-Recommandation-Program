@@ -44,7 +44,7 @@ fun DetailScreen(
     scored: Scored?,
     inPool: Boolean,
     weights: Map<Factor, Double>,
-    channel: com.stockrec.core.Channel?,
+    buyZone: com.stockrec.core.BuyZoneResult?,
     contentPadding: PaddingValues,
 ) {
     var period by rememberSaveable { mutableIntStateOf(250) }
@@ -79,11 +79,18 @@ fun DetailScreen(
         }
         Text("${last.date} 기준", style = MaterialTheme.typography.labelSmall)
 
-        if (channel != null) {
-            SectionTitle("주봉 추세선 채널")
-            ChannelPositionBar(channel)
-            ChannelChart(channel, Modifier.padding(top = 4.dp))
-            SectionTitle("일봉 차트")
+        if (buyZone != null) {
+            SectionTitle(if (buyZone.buy) "매수권 판정 · 4개 차트 모두 충족" else "매수권 판정 · ${buyZone.nOk}/4 충족")
+            CheckBadges(buyZone)
+            Spacer(Modifier.height(12.dp))
+            buyZone.channels[com.stockrec.core.Check.STOCK_DAILY]?.let { ChannelChart(it, "종목 일봉") }
+                ?: NoChannelChart("종목 일봉", fs.bars.takeLast(250))
+            Spacer(Modifier.height(12.dp))
+            buyZone.channels[com.stockrec.core.Check.STOCK_WEEKLY]?.let { ChannelChart(it, "종목 주봉") }
+                ?: NoChannelChart("종목 주봉", com.stockrec.core.TrendChannel.weekly(fs.bars).takeLast(156))
+            Text("지수 차트는 추천 탭 상단의 지수 카드를 누르면 볼 수 있습니다.", style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            SectionTitle("일봉 차트 · 이동평균")
         }
 
         Row(

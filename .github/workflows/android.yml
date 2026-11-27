@@ -30,11 +30,11 @@ jobs:
           NETWORK_TESTS: "1"
         run: ./gradlew :core:test --tests "*DataTest.liveNaverData" --rerun-tasks -i | grep -E "fchart|marketValue|기본 목록|FAILED|PASSED|Exception" || true
 
-      - name: 추세선 채널 실시장 스캔 (코스피·코스닥 시총 상위 각 300)
+      - name: 매수권 실시장 스캔 (종목·지수 일봉/주봉, 코스피·코스닥 시총 상위 각 300)
         continue-on-error: true
         env:
           NETWORK_TESTS: "1"
-        run: ./gradlew :core:test --tests "*TrendTest.liveScan" --rerun-tasks -i | grep -E "TREND\||DAILY\|" || true
+        run: ./gradlew :core:test --tests "*TrendTest.liveScan" --rerun-tasks -i | grep "TREND|" || true
 
       - name: APK 빌드
         run: ./gradlew :app:assembleRelease --stacktrace

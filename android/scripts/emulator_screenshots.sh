@@ -24,13 +24,15 @@ shot 01c_live_45s 25
 shot 01d_live_90s 45
 applog logcat_live
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 01e_live_scrolled 2
-# 추세선 탭 (캐시된 실시간 데이터 사용)
-launch --es tab trend;                                   shot 07_live_trend 15
-adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 07b_live_trend_scrolled 2
-launch --es open TREND_FIRST;                            shot 08_live_trend_detail 15
+# 실시간 데이터(캐시) 화면들
+launch --es open IDX:KOSPI;                              shot 07_live_index_kospi 15
+adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/4)) 400; shot 07b_live_index_scrolled 2
+launch --es open TREND_FIRST;                            shot 08_live_stock_detail 15
+adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/5)) 400; shot 08b_live_stock_detail_scrolled 2
+launch --es tab score;                                   shot 09_live_score 12
 
 # 2) 데모 모드 화면들
-launch --ez demo true;                                   shot 02_demo_recommend 10
+launch --ez demo true;                                   shot 02_demo_recommend 15
 launch --ez demo true --es open 900610;                  shot 03_demo_detail 10
 adb shell input swipe $((W/2)) $((H*3/4)) $((W/2)) $((H/5)) 400; shot 04_demo_detail_scrolled 3
 launch --ez demo true --es tab backtest --ez run_backtest true; shot 05_demo_backtest 15

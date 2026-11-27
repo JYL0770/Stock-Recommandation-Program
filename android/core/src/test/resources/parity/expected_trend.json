@@ -1,127 +1,438 @@
 {
- "900000": {
-  "status": "채널 위",
-  "support": 566049.3103448276,
-  "upper": 622654.2413793104,
-  "tolerance": 17896.2,
-  "touches": 3,
-  "start_date": "2024-04-19",
-  "pivot2_date": "2025-05-30",
-  "trend_per_year": 0.2837671629680124,
-  "from_recent_high": -0.22480650844236827
+ "index": {
+  "KOSPI": {
+   "last_close": 1450.813344536859,
+   "n": 780,
+   "daily": {
+    "status": "지지선 이탈",
+    "support": 1494.8852733308254,
+    "upper": 1644.373800663908,
+    "touches": 5,
+    "start_date": "2026-07-28",
+    "pivot2_date": "2026-11-13",
+    "trend_per_year": 0.4409457092721888,
+    "from_recent_high": -0.11307687890237839
+   },
+   "weekly": {
+    "status": "매수권",
+    "support": 1402.117019610937,
+    "upper": 1542.3287215720309,
+    "touches": 5,
+    "start_date": "2025-05-02",
+    "pivot2_date": "2026-03-13",
+    "trend_per_year": 0.22944804618100292,
+    "from_recent_high": -0.10011132210144036
+   }
+  },
+  "KOSDAQ": {
+   "last_close": 3342.0314845193184,
+   "n": 780,
+   "daily": {
+    "status": "채널 위",
+    "support": 2881.534358695879,
+    "upper": 3169.687794565467,
+    "touches": 5,
+    "start_date": "2026-04-07",
+    "pivot2_date": "2026-09-04",
+    "trend_per_year": 0.5762826713073045,
+    "from_recent_high": -0.07334305109647687
+   },
+   "weekly": {
+    "status": "채널 위",
+    "support": 2094.6737711715477,
+    "upper": 2304.141148288703,
+    "touches": 6,
+    "start_date": "2024-05-31",
+    "pivot2_date": "2026-04-10",
+    "trend_per_year": 0.24087014626483205,
+    "from_recent_high": -0.07334305109647687
+   }
+  }
  },
- "900010": null,
- "900020": null,
- "900030": {
-  "status": "지지선 이탈",
-  "support": 5098.75,
-  "upper": 5608.625,
-  "tolerance": 152.9625,
-  "touches": 3,
-  "start_date": "2026-04-10",
-  "pivot2_date": "2026-07-31",
-  "trend_per_year": 0.49718068153959305,
-  "from_recent_high": -0.18804920913884005
- },
- "900040": {
-  "status": "매수권",
-  "support": 340478.23529411765,
-  "upper": 374526.05882352946,
-  "tolerance": 10214.347058823529,
-  "touches": 6,
-  "start_date": "2025-04-18",
-  "pivot2_date": "2025-12-12",
-  "trend_per_year": 0.33015844495545194,
-  "from_recent_high": -0.2550779795639764
- },
- "900050": null,
- "900060": {
-  "status": "채널 위",
-  "support": 102099.13043478261,
-  "upper": 112309.04347826088,
-  "tolerance": 3062.973913043478,
-  "touches": 6,
-  "start_date": "2024-12-27",
-  "pivot2_date": "2025-11-14",
-  "trend_per_year": 0.35518762668846987,
-  "from_recent_high": -0.2507871155243401
- },
- "900070": {
-  "status": "채널 위",
-  "support": 389499.4736842105,
-  "upper": 428449.4210526316,
-  "tolerance": 15192.0,
-  "touches": 5,
-  "start_date": "2025-08-01",
-  "pivot2_date": "2025-12-12",
-  "trend_per_year": 0.5374617086165916,
-  "from_recent_high": -0.08060063469129752
- },
- "900080": null,
- "900090": {
-  "status": "채널 위",
-  "support": 216555.1724137931,
-  "upper": 238210.68965517243,
-  "tolerance": 6496.655172413793,
-  "touches": 5,
-  "start_date": "2024-12-20",
-  "pivot2_date": "2026-01-30",
-  "trend_per_year": 0.2328370567347654,
-  "from_recent_high": -0.025769023205612474
- },
- "900100": null,
- "900110": null,
- "900120": null,
- "900130": null,
- "900140": {
-  "status": "채널 위",
-  "support": 137193.9393939394,
-  "upper": 150913.33333333334,
-  "tolerance": 4115.818181818182,
-  "touches": 4,
-  "start_date": "2026-01-09",
-  "pivot2_date": "2026-08-28",
-  "trend_per_year": 0.6065556389981004,
-  "from_recent_high": -0.17933541017653165
- },
- "900150": null,
- "900160": null,
- "900170": null,
- "900180": {
-  "status": "채널 위",
-  "support": 87712.72727272726,
-  "upper": 96484.0,
-  "tolerance": 5863.2,
-  "touches": 3,
-  "start_date": "2025-05-16",
-  "pivot2_date": "2026-03-20",
-  "trend_per_year": 0.36513826126611665,
-  "from_recent_high": -0.348855221984695
- },
- "900190": null,
- "900200": null,
- "900210": {
-  "status": "채널 위",
-  "support": 1057253.0158730159,
-  "upper": 1162978.3174603176,
-  "tolerance": 60962.8,
-  "touches": 7,
-  "start_date": "2024-05-31",
-  "pivot2_date": "2025-08-15",
-  "trend_per_year": 0.3584659496442863,
-  "from_recent_high": -0.04104471343956517
- },
- "900220": null,
- "900230": null,
- "900240": {
-  "status": "지지선 이탈",
-  "support": 53910.0,
-  "upper": 59301.00000000001,
-  "tolerance": 1617.3,
-  "touches": 3,
-  "start_date": "2026-04-10",
-  "pivot2_date": "2026-07-03",
-  "trend_per_year": 0.4887157608359612,
-  "from_recent_high": -0.10716279069767443
+ "stocks": {
+  "900000": {
+   "weekly": {
+    "status": "채널 위",
+    "support": 566049.3103448276,
+    "upper": 622654.2413793104,
+    "touches": 3,
+    "start_date": "2024-04-19",
+    "pivot2_date": "2025-05-30",
+    "trend_per_year": 0.2837671629680124,
+    "from_recent_high": -0.22480650844236827
+   },
+   "daily": {
+    "status": "지지선 이탈",
+    "support": 866250.0,
+    "upper": 952875.0000000001,
+    "touches": 3,
+    "start_date": "2026-08-21",
+    "pivot2_date": "2026-10-01",
+    "trend_per_year": 0.8523636363636363,
+    "from_recent_high": -0.2404650847063159
+   },
+   "n_ok": 0,
+   "buy": false
+  },
+  "900010": {
+   "weekly": null,
+   "daily": null,
+   "n_ok": 1,
+   "buy": false
+  },
+  "900020": {
+   "weekly": null,
+   "daily": null,
+   "n_ok": 1,
+   "buy": false
+  },
+  "900030": {
+   "weekly": {
+    "status": "지지선 이탈",
+    "support": 5098.75,
+    "upper": 5608.625,
+    "touches": 3,
+    "start_date": "2026-04-10",
+    "pivot2_date": "2026-07-31",
+    "trend_per_year": 0.49718068153959305,
+    "from_recent_high": -0.18804920913884005
+   },
+   "daily": {
+    "status": "지지선 이탈",
+    "support": 4950.1769911504425,
+    "upper": 5445.194690265487,
+    "touches": 4,
+    "start_date": "2026-04-10",
+    "pivot2_date": "2026-09-16",
+    "trend_per_year": 0.4505068201726943,
+    "from_recent_high": -0.2075471698113207
+   },
+   "n_ok": 0,
+   "buy": false
+  },
+  "900040": {
+   "weekly": {
+    "status": "매수권",
+    "support": 340478.23529411765,
+    "upper": 374526.05882352946,
+    "touches": 6,
+    "start_date": "2025-04-18",
+    "pivot2_date": "2025-12-12",
+    "trend_per_year": 0.33015844495545194,
+    "from_recent_high": -0.2550779795639764
+   },
+   "daily": {
+    "status": "매수권",
+    "support": 344414.92063492065,
+    "upper": 378856.4126984127,
+    "touches": 3,
+    "start_date": "2026-03-05",
+    "pivot2_date": "2026-06-02",
+    "trend_per_year": 0.22496121787397444,
+    "from_recent_high": -0.28980477223427337
+   },
+   "n_ok": 3,
+   "buy": false
+  },
+  "900050": {
+   "weekly": null,
+   "daily": {
+    "status": "지지선 이탈",
+    "support": 104676.31578947368,
+    "upper": 115143.94736842105,
+    "touches": 5,
+    "start_date": "2026-02-20",
+    "pivot2_date": "2026-11-13",
+    "trend_per_year": 0.21818840033185008,
+    "from_recent_high": -0.1681639986932375
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900060": {
+   "weekly": {
+    "status": "채널 위",
+    "support": 102099.13043478261,
+    "upper": 112309.04347826088,
+    "touches": 6,
+    "start_date": "2024-12-27",
+    "pivot2_date": "2025-11-14",
+    "trend_per_year": 0.35518762668846987,
+    "from_recent_high": -0.2507871155243401
+   },
+   "daily": {
+    "status": "매수권",
+    "support": 121449.1791044776,
+    "upper": 133594.09701492538,
+    "touches": 9,
+    "start_date": "2026-01-30",
+    "pivot2_date": "2026-08-06",
+    "trend_per_year": 0.4674813308680801,
+    "from_recent_high": -0.26235469448584203
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900070": {
+   "weekly": {
+    "status": "채널 위",
+    "support": 389499.4736842105,
+    "upper": 428449.4210526316,
+    "touches": 5,
+    "start_date": "2025-08-01",
+    "pivot2_date": "2025-12-12",
+    "trend_per_year": 0.5374617086165916,
+    "from_recent_high": -0.08060063469129752
+   },
+   "daily": {
+    "status": "채널 위",
+    "support": 609554.0,
+    "upper": 670509.4,
+    "touches": 6,
+    "start_date": "2026-04-07",
+    "pivot2_date": "2026-07-14",
+    "trend_per_year": 0.8847714886622022,
+    "from_recent_high": -0.1173228639015147
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900080": {
+   "weekly": null,
+   "daily": null,
+   "n_ok": 1,
+   "buy": false
+  },
+  "900090": {
+   "weekly": {
+    "status": "채널 위",
+    "support": 216555.1724137931,
+    "upper": 238210.68965517243,
+    "touches": 5,
+    "start_date": "2024-12-20",
+    "pivot2_date": "2026-01-30",
+    "trend_per_year": 0.2328370567347654,
+    "from_recent_high": -0.025769023205612474
+   },
+   "daily": {
+    "status": "매수권",
+    "support": 276033.80597014923,
+    "upper": 303637.1865671642,
+    "touches": 6,
+    "start_date": "2026-03-17",
+    "pivot2_date": "2026-09-21",
+    "trend_per_year": 0.4874646275480534,
+    "from_recent_high": -0.05033700476738456
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900100": {
+   "weekly": null,
+   "daily": null,
+   "n_ok": 1,
+   "buy": false
+  },
+  "900110": {
+   "weekly": null,
+   "daily": {
+    "status": "채널 위",
+    "support": 156952.9411764706,
+    "upper": 172648.23529411768,
+    "touches": 4,
+    "start_date": "2026-05-14",
+    "pivot2_date": "2026-07-24",
+    "trend_per_year": 0.48796941758488865,
+    "from_recent_high": -0.08888155129975384
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900120": {
+   "weekly": null,
+   "daily": null,
+   "n_ok": 0,
+   "buy": false
+  },
+  "900130": {
+   "weekly": null,
+   "daily": null,
+   "n_ok": 1,
+   "buy": false
+  },
+  "900140": {
+   "weekly": {
+    "status": "채널 위",
+    "support": 137193.9393939394,
+    "upper": 150913.33333333334,
+    "touches": 4,
+    "start_date": "2026-01-09",
+    "pivot2_date": "2026-08-28",
+    "trend_per_year": 0.6065556389981004,
+    "from_recent_high": -0.17933541017653165
+   },
+   "daily": {
+    "status": "매수권",
+    "support": 144902.59259259258,
+    "upper": 159392.85185185185,
+    "touches": 6,
+    "start_date": "2026-02-06",
+    "pivot2_date": "2026-09-22",
+    "trend_per_year": 0.6243581256374015,
+    "from_recent_high": -0.21269177126917715
+   },
+   "n_ok": 2,
+   "buy": false
+  },
+  "900150": {
+   "weekly": null,
+   "daily": null,
+   "n_ok": 0,
+   "buy": false
+  },
+  "900160": {
+   "weekly": null,
+   "daily": {
+    "status": "지지선 이탈",
+    "support": 149083.58208955225,
+    "upper": 163991.94029850748,
+    "touches": 6,
+    "start_date": "2026-05-11",
+    "pivot2_date": "2026-11-13",
+    "trend_per_year": 0.588839276775524,
+    "from_recent_high": -0.2108950356323227
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900170": {
+   "weekly": null,
+   "daily": null,
+   "n_ok": 1,
+   "buy": false
+  },
+  "900180": {
+   "weekly": {
+    "status": "채널 위",
+    "support": 87712.72727272726,
+    "upper": 96484.0,
+    "touches": 3,
+    "start_date": "2025-05-16",
+    "pivot2_date": "2026-03-20",
+    "trend_per_year": 0.36513826126611665,
+    "from_recent_high": -0.348855221984695
+   },
+   "daily": null,
+   "n_ok": 0,
+   "buy": false
+  },
+  "900190": {
+   "weekly": null,
+   "daily": {
+    "status": "지지선 이탈",
+    "support": 32391.333333333332,
+    "upper": 35630.46666666667,
+    "touches": 5,
+    "start_date": "2026-07-28",
+    "pivot2_date": "2026-10-20",
+    "trend_per_year": 0.5394035441579024,
+    "from_recent_high": -0.18064182194616973
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900200": {
+   "weekly": null,
+   "daily": {
+    "status": "지지선 이탈",
+    "support": 39831.33333333333,
+    "upper": 43814.46666666667,
+    "touches": 5,
+    "start_date": "2026-08-25",
+    "pivot2_date": "2026-10-27",
+    "trend_per_year": 1.4087401877918557,
+    "from_recent_high": -0.31533101045296164
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900210": {
+   "weekly": {
+    "status": "채널 위",
+    "support": 1057253.0158730159,
+    "upper": 1162978.3174603176,
+    "touches": 7,
+    "start_date": "2024-05-31",
+    "pivot2_date": "2025-08-15",
+    "trend_per_year": 0.3584659496442863,
+    "from_recent_high": -0.04104471343956517
+   },
+   "daily": {
+    "status": "채널 위",
+    "support": 1842393.125,
+    "upper": 2026632.4375000002,
+    "touches": 5,
+    "start_date": "2026-06-08",
+    "pivot2_date": "2026-09-04",
+    "trend_per_year": 0.4297199735805571,
+    "from_recent_high": -0.0771911674371989
+   },
+   "n_ok": 0,
+   "buy": false
+  },
+  "900220": {
+   "weekly": null,
+   "daily": {
+    "status": "채널 위",
+    "support": 64602.31884057971,
+    "upper": 71062.5507246377,
+    "touches": 5,
+    "start_date": "2026-02-23",
+    "pivot2_date": "2026-09-03",
+    "trend_per_year": 0.5059718769909995,
+    "from_recent_high": -0.08766308079652096
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900230": {
+   "weekly": null,
+   "daily": {
+    "status": "채널 위",
+    "support": 117587.14285714286,
+    "upper": 129345.85714285714,
+    "touches": 3,
+    "start_date": "2026-08-24",
+    "pivot2_date": "2026-09-22",
+    "trend_per_year": 0.8633596967598498,
+    "from_recent_high": -0.05834704467788887
+   },
+   "n_ok": 1,
+   "buy": false
+  },
+  "900240": {
+   "weekly": {
+    "status": "지지선 이탈",
+    "support": 53910.0,
+    "upper": 59301.00000000001,
+    "touches": 3,
+    "start_date": "2026-04-10",
+    "pivot2_date": "2026-07-03",
+    "trend_per_year": 0.4887157608359612,
+    "from_recent_high": -0.10716279069767443
+   },
+   "daily": {
+    "status": "지지선 이탈",
+    "support": 54067.34513274336,
+    "upper": 59474.0796460177,
+    "touches": 8,
+    "start_date": "2026-04-08",
+    "pivot2_date": "2026-09-14",
+    "trend_per_year": 0.4710349760459342,
+    "from_recent_high": -0.10848968976407203
+   },
+   "n_ok": 0,
+   "buy": false
+  }
  }
 }

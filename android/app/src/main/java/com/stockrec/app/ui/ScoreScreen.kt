@@ -45,7 +45,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecommendScreen(
+fun ScoreScreen(
     state: UiState,
     onSelectStrategy: (Int) -> Unit,
     onOpen: (String) -> Unit,

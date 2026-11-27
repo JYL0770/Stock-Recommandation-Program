@@ -17,7 +17,7 @@ from recommender import (
     recommend, run_backtest,
 )
 from recommender.scoring import apply_filters
-from recommender.trendline import STATUS_BELOW, STATUS_IN, ChannelParams, channel_lines, fit_channel, weekly
+from recommender.trendline import CHECK_LABELS, CHECKS, channel_lines, channels_of, evaluate, load_index_daily
 
 st.set_page_config(page_title="주식 추천 (가격 지표)", page_icon="📈", layout="wide")
 
@@ -34,14 +34,13 @@ def load(source: str, data_dir: str):
 
 
 @st.cache_data(show_spinner="추세선 계산 중...")
-def channels(_feats, key, width):
-    p = ChannelParams(width=width)
-    out = {}
-    for t, g in _feats.groupby("ticker"):
-        ch = fit_channel(weekly(g), p)
-        if ch is not None:
-            out[t] = ch
-    return out
+def buy_zone(_feats, _meta, key, width):
+    daily = _feats[["ticker", "date", "open", "high", "low", "close"]]
+    idx_daily = load_index_daily(daily, _meta, None if key == "demo" else data_dir)
+    idx = {m: channels_of(df, width) for m, df in idx_daily.items()}
+    market = _meta.set_index("ticker")["market"].to_dict() if _meta is not None and "market" in _meta else {}
+    res = {t: evaluate(g, idx.get(market.get(t, "KOSPI"), (None, None)), width) for t, g in daily.groupby("ticker")}
+    return res, idx
 
 
 @st.cache_data(show_spinner="백테스트 실행 중...")
@@ -122,38 +121,50 @@ tab_rec, tab_trend, tab_detail, tab_bt, tab_help = st.tabs(
 
 # ------------------------------------------------------------------ 추세선 매수권
 with tab_trend:
-    st.caption("주봉에서 상승 추세의 저점을 가장 많이 잇는 지지선(하단선)과 그 위 평행선(상단선)을 자동으로 긋고, "
-               "현재가가 두 선 사이로 내려온 종목을 찾습니다. 지지선은 연 20% 이상 오르는 선, 저점 접점 3회 이상만 사용합니다.")
-    c1, c2 = st.columns([1, 3])
-    width = c1.select_slider("채널 폭 (상단선 = 지지선 × (1+폭))", [0.05, 0.08, 0.10, 0.15, 0.20], value=0.10,
+    st.caption("상승 추세의 저점을 가장 많이 잇는 지지선(하단선)과 그 위 평행선(상단선) 사이에 마지막 종가가 있을 때 그 차트는 '매수권'. "
+               "종목 일봉·주봉, 지수 일봉·주봉 4개 차트가 모두 매수권이어야 최종 매수권입니다.")
+    width = st.select_slider("채널 폭 (상단선 = 지지선 × (1+폭))", [0.05, 0.08, 0.10, 0.15, 0.20], value=0.10,
                              format_func=lambda x: f"{x:.0%}")
-    show = c2.radio("보기", [STATUS_IN, STATUS_BELOW, "전체"], horizontal=True)
-    chs = channels(feats, source, width)
-    rows = [{"ticker": t, **{k: v for k, v in ch.items() if not k.startswith("_")}} for t, ch in chs.items()
-            if show == "전체" or ch["status"] == show]
+    res, idx = buy_zone(feats, meta, source, width)
+    if not idx:
+        st.warning("지수 데이터가 없어 지수 조건을 확인할 수 없습니다 (data/index_KOSPI.parquet, index_KOSDAQ.parquet 필요).")
+    cols = st.columns(max(1, len(idx)))
+    for col, (m, (d, w)) in zip(cols, idx.items()):
+        ok = all(c is not None and c["status"] == "매수권" for c in (d, w))
+        col.metric(f"{m} 지수", "충족" if ok else "미충족",
+                   f"일봉 {d['status'] if d else '추세선 없음'} · 주봉 {w['status'] if w else '추세선 없음'}", delta_color="off")
+    rows = []
+    for t, ev in res.items():
+        if ev["n_ok"] < 2 and not ev["stock_ok"]:
+            continue
+        sd, sw = ev["channels"]["stock_daily"], ev["channels"]["stock_weekly"]
+        rows.append({"종목": label(t), "판정": "매수권" if ev["buy"] else f"{ev['n_ok']}/4",
+                     **{CHECK_LABELS[k]: "✅" if ev["ok"][k] else "❌" for k in CHECKS},
+                     "일봉 지지선": sd and sd["support"], "주봉 지지선": sw and sw["support"], "_t": t, "_n": ev["n_ok"]})
     if not rows:
-        st.info("조건에 맞는 종목이 없습니다.")
+        st.info("조건을 만족하는 종목이 없습니다.")
     else:
-        tv = pd.DataFrame(rows).sort_values(["touches", "position"], ascending=[False, True])
-        st.dataframe(pd.DataFrame({
-            "종목": tv["ticker"].map(label), "상태": tv["status"], "현재가": tv["close"],
-            "지지선": tv["support"], "상단선": tv["upper"], "지지선 대비": (tv["close"] / tv["support"] - 1) * 100,
-            "접점": tv["touches"], "추세 시작": tv["start_date"].dt.date,
-            "지지선 상승(연)": tv["trend_per_year"] * 100, "26주 고점 대비": tv["from_recent_high"] * 100,
-        }), hide_index=True, width="stretch", column_config={
-            "현재가": st.column_config.NumberColumn(format="%,d"), "지지선": st.column_config.NumberColumn(format="%,d"),
-            "상단선": st.column_config.NumberColumn(format="%,d"),
-            **{c: st.column_config.NumberColumn(format="%+.1f%%") for c in ("지지선 대비", "지지선 상승(연)", "26주 고점 대비")},
-        })
-        pick = st.selectbox("차트 보기", tv["ticker"].tolist(), format_func=label)
-        L = channel_lines(chs[pick])
-        cf = go.Figure(go.Candlestick(x=L["date"], open=L["open"], high=L["high"], low=L["low"], close=L["close"],
-                                      name="주봉", increasing_line_color="#d62728", decreasing_line_color="#1f77b4"))
-        cf.add_trace(go.Scatter(x=L["date"], y=L["support"], name="지지선", line=dict(color="red", width=2.5)))
-        cf.add_trace(go.Scatter(x=L["date"], y=L["upper"], name="상단선", line=dict(color="red", width=2.5)))
-        cf.update_layout(height=520, xaxis_rangeslider_visible=False, margin=dict(t=10, b=10),
-                         legend=dict(orientation="h", y=1.04))
-        st.plotly_chart(cf, width="stretch")
+        tv = pd.DataFrame(rows).sort_values("_n", ascending=False)
+        n_buy = int((tv["판정"] == "매수권").sum())
+        st.subheader(f"매수권 {n_buy}종목" + ("" if n_buy else " — 아래는 일부 조건만 충족한 참고 목록"))
+        st.dataframe(tv.drop(columns=["_t", "_n"]), hide_index=True, width="stretch", column_config={
+            "일봉 지지선": st.column_config.NumberColumn(format="%,d"), "주봉 지지선": st.column_config.NumberColumn(format="%,d")})
+        pick = st.selectbox("차트 보기", tv["_t"].tolist(), format_func=label)
+        ev = res[pick]
+        ccols = st.columns(2)
+        for col, k in zip(ccols, ("stock_daily", "stock_weekly")):
+            ch = ev["channels"][k]
+            if ch is None:
+                col.info(f"{CHECK_LABELS[k]}: 추세선 없음")
+                continue
+            L = channel_lines(ch)
+            cf = go.Figure(go.Candlestick(x=L["date"], open=L["open"], high=L["high"], low=L["low"], close=L["close"],
+                                          name=CHECK_LABELS[k], increasing_line_color="#d62728", decreasing_line_color="#1f77b4"))
+            cf.add_trace(go.Scatter(x=L["date"], y=L["support"], name="지지선", line=dict(color="red", width=2.5)))
+            cf.add_trace(go.Scatter(x=L["date"], y=L["upper"], name="상단선", line=dict(color="red", width=2.5)))
+            cf.update_layout(title=f"{CHECK_LABELS[k]}: {ch['status']}", height=420, xaxis_rangeslider_visible=False,
+                             margin=dict(t=40, b=10), showlegend=False)
+            col.plotly_chart(cf, width="stretch")
 
 # ------------------------------------------------------------------ 추천
 with tab_rec:
