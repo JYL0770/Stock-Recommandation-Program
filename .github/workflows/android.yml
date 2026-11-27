@@ -34,7 +34,7 @@ jobs:
         continue-on-error: true
         env:
           NETWORK_TESTS: "1"
-        run: ./gradlew :core:test --tests "*TrendTest.liveScan" --tests "*YahooTest.liveUsScan" --tests "*ProbeTest*" --rerun-tasks -i | grep -E "TREND\||PROBE" || true
+        run: ./gradlew :core:test --tests "*TrendTest.liveScan" --tests "*YahooTest.liveUsScan" --rerun-tasks -i | grep "TREND|" || true
 
       - name: APK 빌드
         run: ./gradlew :app:assembleRelease --stacktrace

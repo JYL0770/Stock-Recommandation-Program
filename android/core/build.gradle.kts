@@ -23,3 +23,11 @@ tasks.test {
     environment("NETWORK_TESTS", System.getenv("NETWORK_TESTS") ?: "0")
     testLogging { events("failed"); showStandardStreams = true; exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL }
 }
+
+// 전체 시장 스캔: ./gradlew :core:scan --args="KR build/scan/scan_kr.json"
+tasks.register<JavaExec>("scan") {
+    group = "application"
+    mainClass.set("com.stockrec.core.MarketScanKt")
+    classpath = sourceSets["main"].runtimeClasspath
+    jvmArgs("-Xmx2g")
+}
