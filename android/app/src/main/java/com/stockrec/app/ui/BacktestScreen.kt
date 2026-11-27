@@ -61,7 +61,7 @@ fun BacktestScreen(
         Slider(
             value = state.backtestTopN.toFloat(),
             onValueChange = { onParams(it.roundToInt(), null) },
-            valueRange = 3f..30f, steps = 26,
+            valueRange = 3f..30f,
         )
         Text("리밸런싱 주기 (거래일)", style = MaterialTheme.typography.labelLarge)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

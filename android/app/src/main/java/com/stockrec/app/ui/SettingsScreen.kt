@@ -172,7 +172,6 @@ private fun IntSlider(label: String, value: Int, range: IntRange, step: Int, uni
             Text(label, style = MaterialTheme.typography.bodyMedium)
             Text("$value$unit", style = MaterialTheme.typography.bodyMedium)
         }
-        val steps = ((range.last - range.first) / step - 1).coerceAtLeast(0)
         Slider(
             value = value.toFloat().coerceIn(range.first.toFloat(), range.last.toFloat()),
             onValueChange = { v ->
@@ -180,7 +179,6 @@ private fun IntSlider(label: String, value: Int, range: IntRange, step: Int, uni
                 if (snapped != value) onChange(snapped)
             },
             valueRange = range.first.toFloat()..range.last.toFloat(),
-            steps = steps,
         )
     }
 }

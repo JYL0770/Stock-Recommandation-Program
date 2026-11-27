@@ -1,5 +1,6 @@
 package com.stockrec.app.ui
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -77,9 +78,12 @@ fun DetailScreen(
         }
         Text("${last.date} 기준", style = MaterialTheme.typography.labelSmall)
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-            for (p in listOf(60, 120, 250, 500)) {
-                FilterChip(selected = period == p, onClick = { period = p }, label = { Text("${p}일") })
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState()),
+        ) {
+            for ((p, label) in listOf(60 to "3개월", 120 to "6개월", 250 to "1년", 500 to "2년")) {
+                FilterChip(selected = period == p, onClick = { period = p }, label = { Text(label, maxLines = 1) })
             }
         }
 

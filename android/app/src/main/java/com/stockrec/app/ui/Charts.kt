@@ -49,19 +49,20 @@ fun LineChart(
         val pad = if (yMin == null && yMax == null) (hi - lo) * 0.05 else 0.0
         lo -= pad; hi += pad
 
+        val ticks = if (hLines.isNotEmpty()) hLines else List(4) { lo + (hi - lo) * (it + 0.5) / 4 }
+        val tickLayouts = ticks.map { measurer.measure(yFormat(it), style) }
         val left = 0f
-        val right = size.width - 48.dp.toPx()        // 오른쪽에 y 라벨
+        val right = size.width - (tickLayouts.maxOf { it.size.width } + 6.dp.toPx())  // 오른쪽에 y 라벨
         val top = 4.dp.toPx()
         val bottom = size.height - if (xLabels.isEmpty()) 4.dp.toPx() else 16.dp.toPx()
         fun x(i: Int) = left + (right - left) * i / (n - 1)
         fun y(v: Double) = (bottom - (bottom - top) * ((v - lo) / (hi - lo))).toFloat()
 
         // 그리드 + y 라벨
-        val ticks = if (hLines.isNotEmpty()) hLines else List(4) { lo + (hi - lo) * (it + 0.5) / 4 }
-        for (t in ticks) {
+        ticks.forEachIndexed { i, t ->
             drawLine(gridColor, Offset(left, y(t)), Offset(right, y(t)), 1f,
                 pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f)))
-            val layout = measurer.measure(yFormat(t), style)
+            val layout = tickLayouts[i]
             drawText(layout, topLeft = Offset(right + 4.dp.toPx(), y(t) - layout.size.height / 2))
         }
         for ((i, label) in xLabels) {
@@ -89,12 +90,12 @@ private fun DrawScope.drawSeries(l: Line, x: (Int) -> Float, y: (Double) -> Floa
 
 /** 거래량 막대 */
 @Composable
-fun BarChart(values: DoubleArray, colors: List<Color>, modifier: Modifier = Modifier) {
+fun BarChart(values: DoubleArray, colors: List<Color>, modifier: Modifier = Modifier, rightPadding: androidx.compose.ui.unit.Dp = 56.dp) {
     Canvas(modifier) {
         val n = values.size
         if (n == 0) return@Canvas
         val max = values.filter { !it.isNaN() }.maxOrNull()?.takeIf { it > 0 } ?: return@Canvas
-        val right = size.width - 48.dp.toPx()
+        val right = size.width - rightPadding.toPx()
         val w = right / n
         values.forEachIndexed { i, v ->
             if (v.isNaN()) return@forEachIndexed
