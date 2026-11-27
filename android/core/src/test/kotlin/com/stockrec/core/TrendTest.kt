@@ -128,12 +128,18 @@ class TrendTest {
             val c = TrendChannel.fit(s.info, TrendChannel.weekly(s.bars))
             println("TREND|HYNIX|" + (c?.let { "${it.status.label}|close=${it.close}|support=${it.support.toLong()}|upper=${it.upper.toLong()}|touches=${it.touches}|start=${it.startDate}" } ?: "채널 없음"))
         }
-        // 알고리즘 튜닝용: 전체 주봉 덤프 (WEEKLY|ticker|name|market|date,o,h,l,c;...)
-        for (s in series) {
-            val w = TrendChannel.weekly(s.bars).takeLast(160)
-            println("WEEKLY|${s.info.ticker}|${s.info.name}|${s.info.market}|" +
-                w.joinToString(";") { "${it.date},${it.open.toLong()},${it.high.toLong()},${it.low.toLong()},${it.close.toLong()}" })
+        // 알고리즘 튜닝용: 일봉 덤프 (DAILY|ticker|name|market|date,o,h,l,c;...) — 지수 포함
+        val indexes = listOf("KOSPI", "KOSDAQ").mapNotNull { m ->
+            runCatching { client.fetchDaily(m, 800) }.onFailure { println("TREND|INDEX|$m 실패 $it") }.getOrNull()
+                ?.let { StockSeries(StockInfo(m, m, "INDEX"), it.bars) }
+        }
+        for (s in indexes) println("TREND|INDEX|${s.info.ticker} ${s.bars.size}봉 마지막 ${s.bars.last()}")
+        for (s in indexes + series) {
+            println("DAILY|${s.info.ticker}|${s.info.name}|${s.info.market}|" +
+                s.bars.takeLast(800).joinToString(";") { "${it.date},${fmtN(it.open)},${fmtN(it.high)},${fmtN(it.low)},${fmtN(it.close)}" })
         }
         assertTrue(series.size > 100)
     }
+
+    private fun fmtN(x: Double) = if (x == Math.floor(x)) x.toLong().toString() else "%.2f".format(x)
 }
