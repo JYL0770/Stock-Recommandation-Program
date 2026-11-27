@@ -9,6 +9,7 @@ Python + Machine Learning / Deep Learning 기반 주식 추천 프로그램.
 - [x] 팩터 점수 기반 추천 (전략 프리셋 + 가중치 조정 + 추천 사유)
 - [x] 간이 백테스트
 - [x] 추천 대시보드 (Streamlit) / CLI
+- [x] Android 앱 (휴대폰에서 실시간 시세로 직접 계산)
 - [ ] 뉴스·이슈 등 비가격 정보 반영
 - [ ] ML 베이스라인 (LightGBM)
 - [ ] DL 모델 (LSTM / Transformer)
@@ -77,6 +78,38 @@ python recommend.py --backtest
 5. **종합점수** 상위 N개 + 추천 사유 / 주의 사항 출력
 
 > 투자 판단 참고용이며 투자 권유가 아닙니다. 백테스트는 생존편향 등의 한계가 있습니다.
+
+## Android 앱
+
+휴대폰에서 바로 쓰는 앱입니다. 서버나 API 키 없이 **네이버 금융 공개 시세**를 받아 휴대폰 안에서 같은 추천 엔진으로 계산합니다.
+(키움 REST API 는 등록한 고정 IP 에서만 호출되어 휴대폰에서 직접 쓰기 어렵기 때문)
+
+**설치**: 휴대폰 브라우저로 [최신 APK](https://github.com/JYL0770/Stock-Recommandation-Program/releases/download/android-latest/stock-recommender.apk) 를 받아 실행
+→ "알 수 없는 앱 설치" 허용 (Android 8.0 이상). 코드가 바뀌면 GitHub Actions 가 APK 를 자동으로 다시 빌드해 같은 주소에 올립니다.
+
+| 화면 | 내용 |
+|---|---|
+| 추천 | 전략 선택, 순위·점수·수익률·RSI, 추천 사유/주의 사항 |
+| 종목 상세 | 가격·이동평균·거래량·RSI 차트, 팩터 점수, 판단 근거, 지표표 |
+| 백테스트 | 보유 종목 수·리밸런싱 주기 설정, 전략 vs 벤치마크 수익 곡선 |
+| 설정 | 데이터(실시간/데모), 종목 범위(시총 상위 N·직접 추가), 팩터 가중치, 필터 |
+
+```
+android/
+├── core/   # 순수 Kotlin 추천 엔진 (Python recommender/ 포팅) + 네이버 시세 클라이언트
+│           #   ParityTest: Python 과 같은 지표·점수·추천·백테스트 결과인지 검증
+└── app/    # Jetpack Compose UI
+```
+
+```bash
+cd android
+./gradlew :core:test              # 엔진 테스트 (Android SDK 불필요)
+./gradlew :app:assembleRelease    # APK 빌드 (Android SDK 필요, 또는 Android Studio 로 android/ 열기)
+python scripts/export_parity_fixtures.py   # Python 엔진을 바꿨다면 검증 픽스처 재생성
+```
+
+- 실시간 모드에는 PER·PBR·ROE 가 없어 밸류 팩터는 제외되고 나머지 가중치로 계산됩니다.
+- 네이버 시세는 공식 Open API 가 아니므로 형식이 바뀌면 동작이 멈출 수 있습니다 (개인 참고용).
 
 ## 테스트
 
