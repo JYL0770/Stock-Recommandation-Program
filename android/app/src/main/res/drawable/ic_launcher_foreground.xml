@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 108dp 어댑티브 아이콘: 상승 차트 + 막대 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#5B8DEF" android:pathData="M34,66h7v10h-7z" />
+    <path android:fillColor="#5B8DEF" android:pathData="M46,58h7v18h-7z" />
+    <path android:fillColor="#5B8DEF" android:pathData="M58,62h7v14h-7z" />
+    <path android:fillColor="#5B8DEF" android:pathData="M70,48h7v28h-7z" />
+    <path android:strokeColor="#FF5A5F" android:strokeWidth="4" android:strokeLineCap="round"
+        android:strokeLineJoin="round" android:fillColor="#00000000"
+        android:pathData="M33,58L45,47L57,53L74,36" />
+    <path android:fillColor="#FF5A5F" android:pathData="M68,33L78,32L77,42Z" />
+</vector>
