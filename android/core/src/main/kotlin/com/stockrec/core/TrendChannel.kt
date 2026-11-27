@@ -171,8 +171,19 @@ data class BuyZoneResult(
 }
 
 object BuyZone {
-    /** 종목 시장 → 비교할 지수 (모르면 KOSPI) */
-    fun indexFor(market: String) = if (market == "KOSDAQ") "KOSDAQ" else "KOSPI"
+    /** 국내 지수 */
+    val KR_INDEXES = listOf("KOSPI" to "코스피", "KOSDAQ" to "코스닥")
+    /** 미국 지수 (Yahoo 심볼) */
+    val US_INDEXES = listOf("^GSPC" to "S&P 500", "^IXIC" to "나스닥 종합")
+
+    /** 종목 시장 → 비교할 지수.
+     *  국내: 코스닥 → 코스닥, 그 외 → 코스피 / 미국: 나스닥 상장 → 나스닥 종합, NYSE·OTC(핑크) 등 → S&P 500 */
+    fun indexFor(market: String) = when (market) {
+        "KOSDAQ" -> "KOSDAQ"
+        "NASDAQ" -> "^IXIC"
+        "NYSE", "OTC", "US" -> "^GSPC"
+        else -> "KOSPI"
+    }
 
     fun index(market: String, series: StockSeries, width: Double = 0.10) = IndexState(
         market, series,
