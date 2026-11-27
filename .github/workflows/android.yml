@@ -67,3 +67,32 @@ jobs:
         with:
           name: screenshots
           path: shots/
+      - name: 스크린샷을 로그로 출력 (아티팩트 접근이 어려운 환경용)
+        if: always()
+        run: |
+          for f in shots/*.png shots/*.txt; do
+            [ -f "$f" ] || continue
+            echo "SHOT_BEGIN $(basename "$f")"; base64 -w 100 "$f" | sed 's/^/B64 /'; echo "SHOT_END"
+          done
+
+  release:
+    # 휴대폰 브라우저에서 바로 받을 수 있도록 최신 APK 를 'android-latest' 사전 릴리스로 게시
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: stock-recommender-apk
+      - name: 사전 릴리스 갱신
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest stock-recommender.apk \
+            --prerelease --target "$GITHUB_SHA" \
+            --title "Android 앱 최신 빌드 (${GITHUB_SHA::7})" \
+            --notes "가격 지표 기반 주식 추천 Android 앱. 휴대폰에서 stock-recommender.apk 를 받아 설치하세요 (Android 8.0 이상, '알 수 없는 앱 설치' 허용 필요). 브랜치: ${GITHUB_REF_NAME}"
